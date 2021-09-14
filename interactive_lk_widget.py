@@ -116,7 +116,10 @@ def interactive_lightcurve_fold_flattening_widget(lks,
     							markersize=5,
     							alpha=0.25,
     							ls='None')
-
+    ymin = ini_fold.flux.min()
+    ymax = ini_fold.flux.max()
+    ax_plt.set_ylim(ymin - 0.1*ymin,
+                    ymax + 0.1*ymax)
 
     wl_slider = Slider(
                 ax = ax_wl,
@@ -128,6 +131,39 @@ def interactive_lightcurve_fold_flattening_widget(lks,
                 orientation='horizontal'
     )
     
+    wl_button = TextBox(
+                ax=wl_btn,
+                label=r'$L_{w}$',
+                initial=101
+                )
+    def update_wl(wlval):
+        wl_val = int(wlval)
+        if wl_val%2 == 0:
+            wl_val += 1
+        updated_lks = lks.flatten(window_length=wl_val)
+        # ax_plt.clear()
+        updated_lks = updated_lks.fold(
+                normalize_phase=True, 
+                period=float(per_slider.val), 
+                epoch_time=t0_slider.val)
+
+        ax_plt.set_xlim(updated_lks.time.value.min(),
+                        updated_lks.time.value.max())
+        ymin = updated_lks.flux.min()
+        ymax = updated_lks.flux.max()
+
+        ax_plt.set_ylim(ymin - 0.1*ymin,
+                        ymax + 0.1*ymax)
+
+        ini_plot.set_xdata(updated_lks.time.value)
+        ini_plot.set_ydata(updated_lks.flux.value)
+        param_str = f'WL: {wl_val}, P: {per_slider.val:3f}, t0: {t0_slider.val:2f}'
+        ax_plt.set_title(param_str)
+        fig.canvas.draw_idle()
+        wl_slider.valinit = wl_val
+        wl_slider.reset()
+    wl_button.on_submit(update_wl)
+
     per_slider = Slider(
                 ax = ax_per,
                 label = r'$Period\ [d]$',
@@ -166,7 +202,8 @@ def interactive_lightcurve_fold_flattening_widget(lks,
         param_str = f'WL: {wl_val}, P: {per_slider.val:3f}, t0: {t0_slider.val:2f}'
         ax_plt.set_title(param_str)
         fig.canvas.draw_idle()
-        per_slider.val = float(perval)
+        per_slider.valinit = float(perval)
+        per_slider.reset()
     per_button.on_submit(update_period)
 
     t0_slider = Slider(
@@ -177,6 +214,42 @@ def interactive_lightcurve_fold_flattening_widget(lks,
                 valinit = t0,
                 orientation = 'horizontal'
     )
+
+    t0_button = TextBox(
+                ax=t0_btn,
+                label=r'$t_{0}$',
+                initial=np.round(star1_t0.value,3)
+                )
+    def update_t0(t0val):
+        wl_val = int(wl_slider.val)
+        if wl_val%2 == 0:
+            wl_val += 1
+        updated_lks = lks.flatten(window_length=wl_val)
+        # ax_plt.clear()
+        updated_lks = updated_lks.fold(
+                normalize_phase=True, 
+                period=float(per_slider.val), 
+                epoch_time=t0_slider.val)
+
+        ax_plt.set_xlim(updated_lks.time.value.min(),
+                        updated_lks.time.value.max())
+        ymin = updated_lks.flux.min()
+        ymax = updated_lks.flux.max()
+
+        ax_plt.set_ylim(ymin - 0.1*ymin,
+                        ymax + 0.1*ymax)
+
+        ini_plot.set_xdata(updated_lks.time.value)
+        ini_plot.set_ydata(updated_lks.flux.value)
+        param_str = f'WL: {wl_val}, P: {per_slider.val:3f}, t0: {t0_slider.val:2f}'
+        ax_plt.set_title(param_str)
+        fig.canvas.draw_idle()
+        t0_slider.valinit = t0val
+        t0_slider.reset()
+    t0_button.on_submit(update_t0)
+
+
+
 
     def update_lks_plot(val):
         wl_val = int(wl_slider.val)
