@@ -9,7 +9,11 @@ import arviz as az
 hq_joker_edr3_apogee_tess_df = astab.Table.read("/Users/kjaehnig/CCA_work/GAT/dr17_joker/unimodal_joker_sample_joined_w_tess_edr3_REDUX.fits").to_pandas()
 
 ### PILFERED AND MODIFIED FROM MARINA KOUNKEL'S GITHUB REPOSITORY FOR THE AURIGA NEURAL NET
+<<<<<<< HEAD
+print("starting...")
+=======
 
+>>>>>>> be426e2839227f7d85c8c9ee45334aeddba7c0d1
 def get_2mass_mag_uncertainties(data):
     from astroquery.gaia import Gaia
     table=astab.Table([data['source_id']],names=['source_id'])
@@ -71,7 +75,11 @@ def initialize_multinest_binary_model(ticnum):
     mist = get_ichrone('mist', bands=['J','H','K','BP','RP','G'])
     
     binarymodel = BinaryStarModel(mist, **params, name=f'TIC_{ticnum}')
+<<<<<<< HEAD
+    binarymodel.mnest_basename = '/Users/kjaehnig'+binarymodel.mnest_basename[1:]
+=======
     
+>>>>>>> be426e2839227f7d85c8c9ee45334aeddba7c0d1
     distance = 1000./params['parallax'][0]
 #     feh_bounds = (params['feh'][0]-3*params['feh'][1], params['feh'][0]+3*params['feh'][1])
 #     print(feh_bounds)
@@ -184,7 +192,11 @@ tic_systems_of_interest = [
 
 
 
+<<<<<<< HEAD
+for ticsystem in [99254945]:
+=======
 for ticsystem in tic_systems_of_interest:
+>>>>>>> be426e2839227f7d85c8c9ee45334aeddba7c0d1
     binmod = initialize_multinest_binary_model(ticsystem)
 
     valid_ages,valid_eeps,valid_mass = get_best_age_eep_mass_bounds(ticsystem)
