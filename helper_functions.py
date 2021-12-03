@@ -11,7 +11,7 @@ from tqdm import tqdm
 import warnings
 import astropy.table as astab
 from astropy.io import fits
-
+import os
 warnings.filterwarnings('ignore',
     message="WARNING (theano.tensor.opt): Cannot construct a scalar test value from a test value with no size:"
 )
@@ -85,16 +85,17 @@ def get_texp_from_lightcurve(res):
     return texp
 
 
-def load_precompiled_pymc3_model_data(DD=None, TIC_TARGET=None, sparse_factor=sparse_factor):
+def load_precompiled_pymc3_model_data(DD=None, TIC_TARGET=None, sparse_factor=5):
     import pickle as pk
-    filename = f"{TIC_TARGET.replace(' ','_')}_sf{int(sparse_factor)}_pymc3_data_dict"
+    filename = f"{TIC_TARGET.replace(' ','_').replace('-','_')}_sf{int(sparse_factor)}_pymc3_data_dict"
 
     try:
-        file = open(DD + "pymc3_data_dict/"+filename, 'rb')
+        file = open(DD + "pymc3_data_dicts/"+filename, 'rb')
         data_dict = pk.load(file)
         file.close()
         return data_dict
     except:
+        print(DD+"pymc3_data_dict/"+filename)
         raise Exception(f"There is no dict file for {TIC_TARGET} with SF= {int(sparse_factor)}")
 
 

@@ -16,7 +16,7 @@ import helper_functions as hf
 warnings.filterwarnings('ignore',
     message="WARNING (theano.tensor.opt): Cannot construct a scalar test value from a test value with no size:"
 )
-
+import os
 import pickle as pk
 import pymc3 as pm
 import pymc3_ext as pmx
@@ -63,8 +63,8 @@ docs_setup()
 
 
 
-# DD = "/Users/kjaehnig/CCA_work/GAT/"
-DD = "/mnt/home/kjaehnig/"
+DD = "/Users/kjaehnig/CCA_work/GAT/"
+# DD = "/mnt/home/kjaehnig/"
 
 def load_construct_run_pymc3_model(
                                     TIC_TARGET='20215452', 
@@ -101,7 +101,7 @@ def load_construct_run_pymc3_model(
     MV_mu, MV_cov = pymc3_model_dict['isores']['logM1Q']
 
     print(MV_cov)
-    print(f"positive semi definiteness: {is_pos_def(MV_cov)}")
+    print(f"positive semi definiteness: {hf.is_pos_def(MV_cov)}")
     DIM = MV_cov.shape[0]
     if COVARIANCE_USE_TYPE == 'diagonal':
         diag_cov = np.zeros_like(MV_cov)
@@ -132,7 +132,7 @@ def load_construct_run_pymc3_model(
             suffix = 'diagonalized_isochrones_MV_prior'
 
     print(pymc3_cov)
-    print(f"positive semi definiteness: {is_pos_def(pymc3_cov)}")
+    print(f"positive semi definiteness: {hf.is_pos_def(pymc3_cov)}")
 
     logr1_mu, logr1_sig = pymc3_model_dict['isores']['logR1']
     logk_mu, logk_sig = pymc3_model_dict['isores']['logk']
@@ -658,12 +658,12 @@ def load_construct_run_pymc3_model(
     fig, axes = plt.subplots(figsize=(10,10), ncols=1, nrows=2)
     # print(flat_samps['ecc'].median())
 
-    axes[0].errorbar(fold(x_rv, p_med, t0_med),
+    axes[0].errorbar(hf.fold(x_rv, p_med, t0_med),
                   y_rv, yerr=yerr_rv, fmt=".k")
     # rvvals = indres['rvvals']
     # lcvals = indres['lcvals']
         
-    t_fold = fold(trv, p_med, t0_med)
+    t_fold = hf.fold(trv, p_med, t0_med)
     inds = np.argsort(t_fold)
     pred = np.percentile(rvvals, [16, 50, 84], axis=0)
     axes[0].plot(t_fold[inds], pred[1][inds], color='C1', zorder=2)
@@ -690,10 +690,10 @@ def load_construct_run_pymc3_model(
     #     )
 
         
-    axes[1].errorbar(fold(x, p_med, t0_med),
+    axes[1].errorbar(hf.fold(x, p_med, t0_med),
                   y-gp_pred, fmt=".k", ms=1, zorder=-1)
 
-    t_fold = fold(tlc, p_med, t0_med)
+    t_fold = hf.fold(tlc, p_med, t0_med)
     inds = np.argsort(t_fold)
     pred = np.percentile(lcvals, [16, 50, 84], axis=0)
     axes[1].plot(t_fold[inds], pred[1][inds], color='C1', zorder=2)
@@ -732,9 +732,9 @@ result.add_option('--CovType', dest='COVARIANCE_USE_TYPE', default='diagonal', t
                 help='type of covariance matrix to use in multivariate prior (defaults to "diagonal")')
 result.add_option("--mf", dest='mult_factor', default=1, type='int',
                 help='multiplicative factor by which to increase multivariate prior variances (default: 1)')
-result.add_option("--Nt", dest="Ntune", default=1000, type='int',
+result.add_option("--nt", dest="Ntune", default=1000, type='int',
                 help="number of tuning draws to perform during sampling (default: 1000)")
-result.add_option("--Nd", dest="Ndraw", default=500, type='int',
+result.add_option("--nd", dest="Ndraw", default=500, type='int',
                 help="number of sample draws to perform during sampling (default: 500)")
 result.add_option("-c", dest='chains', default=2, type='int',
                 help='number of chains to run during sampling (default: 2)')
