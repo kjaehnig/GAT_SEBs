@@ -85,6 +85,18 @@ def get_texp_from_lightcurve(res):
     return texp
 
 
+def load_precompiled_pymc3_model_data(DD=None, TIC_TARGET=None, sparse_factor=sparse_factor):
+    import pickle as pk
+    filename = f"{TIC_TARGET.replace(' ','_')}_sf{int(sparse_factor)}_pymc3_data_dict"
+
+    try:
+        file = open(DD + "pymc3_data_dict/"+filename, 'rb')
+        data_dict = pk.load(file)
+        file.close()
+        return data_dict
+    except:
+        raise Exception(f"There is no dict file for {TIC_TARGET} with SF= {int(sparse_factor)}")
+
 
 def get_system_data_for_pymc3_model(TICID):
     allvis17 = astab.Table.read("/Users/kjaehnig/CCA_work/GAT/dr17_joker/allVisit-dr17-synspec.fits",hdu=1, format='fits')
@@ -310,6 +322,33 @@ def check_for_system_directory(TIC_TARGET, return_directories=False):
         return (tess_pwd+tic_dir, 
                 tess_pwd+tic_dir + "/figures/")
     
+
+def check_for_system_directory_rusty_side(DD, TIC_TARGET, return_directories=False):
+
+    tess_pwd = f"{DD}apotess_systems/".replace('//','/')
+    current_tess_files = os.listdir(tess_pwd)
+
+    tic_dirname = f"{TIC_TARGET.replace(' ','_').replace('-','_')}_files"
+
+    if tic_dirname not in current_tess_files:
+        print(f"No directory(s) found for {TIC_TARGET}.")
+        print(f"Making directory(s) for {TIC_TARGET}.")
+
+        os.mkdir(tess_pwd+tic_dirname)
+        
+        main_dir = tess_pwd+tic_dirname
+        
+        fig_dir = tess_pwd+tic_dirname + "/figures"
+        
+        os.mkdir(fig_dir)
+    else:
+        print(f"There is already a directory for {TIC_TARGET}.")
+    
+    if return_directories:
+        return (tess_pwd+tic_dirname, 
+                tess_pwd+tic_dirname + "/figures/")
+
+
 
 def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3):
     # TIC_TARGET = 'TIC 20215452'
