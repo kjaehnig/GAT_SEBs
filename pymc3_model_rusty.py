@@ -12,7 +12,7 @@ import warnings
 import astropy.table as astab
 from astropy.io import fits
 from optparse import OptionParser
-
+import helper_functions as hf
 warnings.filterwarnings('ignore',
     message="WARNING (theano.tensor.opt): Cannot construct a scalar test value from a test value with no size:"
 )
@@ -30,7 +30,7 @@ import arviz as az
 from corner import corner
 
 
-# dd = "/Users/kjaehnig/CCA_work/GAT/"
+dd = "/Users/kjaehnig/CCA_work/GAT/"
 
 def docs_setup():
     """Set some environment variables and ignore some warnings for the docs"""
@@ -55,7 +55,6 @@ def docs_setup():
 docs_setup()
 
 
-from helper_functions import *
 
 
 
@@ -80,12 +79,12 @@ def load_construct_run_pymc3_model(
     TIC_TARGET = f'TIC {TIC_TARGET}'
 
 
-    pymc3_model_dict = load_precompiled_pymc3_model_data(DD, TIC_TARGET,
+    pymc3_model_dict = hf.load_precompiled_pymc3_model_data(DD, TIC_TARGET,
                                                         sparse_factor=sparse_factor)
     # pymc3_model_dict = load_all_data_for_pymc3_model(TIC_TARGET, 
     #     sparse_factor=sparse_factor, nsig=nsig)
 
-    tic_dest, fig_dest = check_for_system_directory_rusty_side(DD,TIC_TARGET, return_directories=True)
+    tic_dest, fig_dest = hf.check_for_system_directory_rusty_side(DD,TIC_TARGET, return_directories=True)
 
     texp = pymc3_model_dict['texp']
     x_rv, y_rv, yerr_rv = pymc3_model_dict['x_rv'], pymc3_model_dict['y_rv'], pymc3_model_dict['yerr_rv']
@@ -402,28 +401,28 @@ def load_construct_run_pymc3_model(
             
             filename_base = f"{fig_dest}{TIC_TARGET.replace(' ','_')}_{suffix}"
 
-            plot = plot_MAP_rv_curve_diagnostic_plot(model, start, extras, mask, 
+            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, start, extras, mask, 
                                                      title=' after start point opt step',
                                                      filename=filename_base + ' after start point opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
             filename_list.append(plot)
             
             map_soln, info_ = pmx.optimize(start, log_k, return_info=True)
-            plot = plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title='after log_k opt step',
                                                      filename=filename_base + 'after log_k opt step.png'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
             filename_list.append(plot)
             
             map_soln, info_ = pmx.optimize(map_soln, b, return_info=True)
-            plot = plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title=' after b opt step',
                                                      filename = filename_base + ' after b opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
             filename_list.append(plot)
             
             map_soln, info_ = pmx.optimize(map_soln, ecs, return_info=True)
-            plot = plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title='model after [ecs] opt step',
                                                      filename=filename_base + ' model after [ecs] opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
@@ -432,28 +431,28 @@ def load_construct_run_pymc3_model(
 
             
             map_soln, info_ = pmx.optimize(map_soln, [t0,tn], return_info=True)
-            plot = plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title='after [tn,t0] opt step', 
                                                      filename = filename_base + ' after [tn,t0] opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
             filename_list.append(plot) 
 
             map_soln, info_ = pmx.optimize(map_soln, [u1,u2], return_info=True)
-            plot = plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title=' after [u1, u2] opt step', 
                                                      filename=filename_base + ' after [u1, u2] opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
             filename_list.append(plot)
             
             map_soln, info_ = pmx.optimize(map_soln, [sigma_lc, sigma_gp, rho_gp], return_info=True)
-            plot = plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title=' after GP params opt step',
                                                      filename=filename_base + ' after GP params opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
             filename_list.append(plot)
             
             map_soln, info_ = pmx.optimize(map_soln, [mean_rv,mean_lc], return_info=True)
-            plot = plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title=' after [mean_lc, mean_rv] opt step',
                                                      filename=filename_base+' after [mean_lc, mean_rv] opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
@@ -464,21 +463,21 @@ def load_construct_run_pymc3_model(
 
             if ~np.isfinite(ecs_logp):
                 map_soln, info_ = pmx.optimize(map_soln, ecs, return_info=True)
-                plot = plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+                plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                     title=' after [ecs] opt step',
                                                     filename=filename_base + ' after [ecs] opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
                 filename_list.append(plot) 
                 
             map_soln, info_ = pmx.optimize(map_soln, log_sigma_rv, return_info=True)
-            plot = plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title=' after [log_sigma_rv] opt step',
                                                      filename=filename_base + ' after [log_sigma_rv] opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
             filename_list.append(plot)
             
             map_soln, info_ = pmx.optimize(map_soln, BigPrior, return_info=True)
-            plot = plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title=' after BigPriors opt step',
                                                      filename=filename_base + ' after BigPriors opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
@@ -490,7 +489,7 @@ def load_construct_run_pymc3_model(
             map_soln, info_ = pmx.optimize(map_soln, 
     #                                        [log_sigma_rv, rho_gp, sigma_gp, sigma_lc, ecs, tn, t0, b, log_k, log_s, BigPrior, u2, u1, mean_rv, mean_lc],
                                            return_info=True)
-            plot = plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title=' after final opt step',
                                                      filename=filename_base+' after final opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
@@ -741,12 +740,12 @@ result.add_option("-c", dest='chains', default=2, type='int',
                 help='number of chains to run during sampling (default: 2)')
 result.add_option("--sf", dest='sparse_factor', default=5, type='int',
                 help='how sparse to make the lightcurve data before running pymc3 (default: 5)')
-resu;t.add_option("--nsig", dest='nsig', default=5, type='int',
+result.add_option("--nsig", dest='nsig', default=5, type='int',
                 help='number of sigma to consider in constructing isochrones BinMod distributions (default: 5)')
 
 
 if __name__ == "__main__":
-    opt.arguments = result.parse_args()
+    opt,arguments = result.parse_args()
     load_construct_run_pymc3_model(**opt.__dict__)
 
 # tic_systems_of_interest = [
