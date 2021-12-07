@@ -3,6 +3,7 @@ import astropy.table as astab
 import pandas as pd
 import numpy as np
 import astropy
+import sys
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 import matplotlib.pyplot as plt
@@ -30,7 +31,7 @@ import arviz as az
 from corner import corner
 
 
-dd = "/Users/kjaehnig/CCA_work/GAT/"
+#dd = "/Users/kjaehnig/CCA_work/GAT/"
 
 def docs_setup():
     """Set some environment variables and ignore some warnings for the docs"""
@@ -63,11 +64,11 @@ docs_setup()
 
 
 
-DD = "/Users/kjaehnig/CCA_work/GAT/"
-# DD = "/mnt/home/kjaehnig/"
+#DD = "/Users/kjaehnig/CCA_work/GAT/"
+DD = "/mnt/home/kjaehnig/"
 
 def load_construct_run_pymc3_model(
-                                    TIC_TARGET='20215452', 
+                                    TIC_TARGET=20215452, 
                                     COVARIANCE_USE_TYPE='diagonal',
                                     mult_factor=1,
                                     Ntune=1000, 
@@ -76,6 +77,11 @@ def load_construct_run_pymc3_model(
                                     sparse_factor=5, 
                                     nsig=5):
 
+
+   
+    ##sys.stdout = open('file', 'w')
+    print(f'starting model setup and run for TIC-{TIC_TARGET}')
+    ##sys.stdout.close()
     TIC_TARGET = f'TIC {TIC_TARGET}'
 
 
@@ -715,6 +721,9 @@ def load_construct_run_pymc3_model(
 
     plt.savefig(fig_dest + f"{TIC_TARGET.replace(' ','_').replace('-','_')}_{suffix}_rvphase_plot.png",dpi=150,bbox_inches='tight')
     plt.close()
+
+    ##sys.stdout.close()
+
 
 # TIC_TARGET='20215452', 
 # COVARIANCE_USE_TYPE='diagonal',
