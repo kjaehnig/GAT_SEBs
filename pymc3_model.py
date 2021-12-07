@@ -756,5 +756,5 @@ if __name__ == '__main__':
                 model_type = 'diagonalized'
             load_construct_run_pymc3_model(TIC_TARGET=f'TIC {TICs}',
                 COVARIANCE_USE_TYPE=model_type, mult_factor=mult_factor,
-                sparse_factor=2, 
+                sparse_factor=1, 
                 Ndraw=500, Ntune=1000, chains=6)
