@@ -29,7 +29,19 @@ from corner import corner
 from scipy.signal import savgol_filter
 import wquantiles
 
-dd = "/Users/kjaehnig/CCA_work/GAT/"
+dd = readin_config_file()
+
+def readin_config_file():
+    """ Place a config_file.txt within the same repository as this python
+    in order for this function to work and return the data directory
+    """
+    with open("config_file.txt",'r') as f:
+        content = f.read()
+    paths = content.split("\n")
+    for path in paths:
+        print(f'data directory is set to {path.split(" = ")[1].strip("'")}')
+        return path.split(' = ')[1].strip('"')
+
 
 def docs_setup():
     """Set some environment variables and ignore some warnings for the docs"""
