@@ -60,7 +60,7 @@ def readin_config_file():
         content = f.read()
     paths = content.split("\n")
     for path in paths:
-        print(f'data directory set to {path.split(" = ")[1].strip("'")}')
+        ###print(f'data directory set to {path.split(" = ")[1].strip("'")}')
         return path.split(' = ')[1].strip('"')
 
 dd = readin_config_file()

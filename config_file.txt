@@ -1,0 +1,1 @@
+data_dir = "/mnt/home/kjaehnig/pymc3_data_dicts/"
