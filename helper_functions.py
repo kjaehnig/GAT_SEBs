@@ -29,7 +29,7 @@ from corner import corner
 from scipy.signal import savgol_filter
 import wquantiles
 
-# dd = "/Users/kjaehnig/CCA_work/GAT/"
+dd = "/Users/kjaehnig/CCA_work/GAT/"
 
 def docs_setup():
     """Set some environment variables and ignore some warnings for the docs"""
@@ -55,15 +55,6 @@ docs_setup()
 
 
 
-def readin_config_file():
-    with open("config_file.txt",'r') as f:
-        content = f.read()
-    paths = content.split("\n")
-    for path in paths:
-        ###print(f'data directory set to {path.split(" = ")[1].strip("'")}')
-        return path.split(' = ')[1].strip('"')
-
-dd = readin_config_file()
 
 
 
