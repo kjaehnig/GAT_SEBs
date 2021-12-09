@@ -104,7 +104,7 @@ def load_construct_run_pymc3_model(
         ecosw_tv = np.sign(ecosw_tv) * 0.05
 
 
-    MV_mu, MV_cov = pymc3_model_dict['isores']['logM1Q']
+    MV_mu, MV_cov = pymc3_model_dict['isores']['mvPrior_mu'],pymc3_model_dict['isores']['mvPrior_cov']
 
     print(MV_cov)
     print(f"positive semi definiteness: {hf.is_pos_def(MV_cov)}")
@@ -122,7 +122,7 @@ def load_construct_run_pymc3_model(
         eVa, eVe = np.linalg.eig(MV_cov)
         R,S = eVe, np.diag(np.sqrt(eVa))
         T = R.dot(S).T
-        Z = pymc3_model_dict['isores']['MVdat'].T.dot(np.linalg.inv(T))
+        Z = pymc3_model_dict['isores']['mvPrior'].T.dot(np.linalg.inv(T))
         sphr_cov = np.cov(Z.T)
         sphr_mu = np.mean(Z.T, axis=-1)
         pymc3_mu, pymc3_cov = sphr_mu, sphr_cov
@@ -140,7 +140,7 @@ def load_construct_run_pymc3_model(
     print(pymc3_cov)
     print(f"positive semi definiteness: {hf.is_pos_def(pymc3_cov)}")
 
-    logr1_mu, logr1_sig = pymc3_model_dict['isores']['logR1']
+    logr1_mu, logr1_sig = pymc3_model_dict['isores']['logr1']
     logk_mu, logk_sig = pymc3_model_dict['isores']['logk']
     logs_mu, logs_sig = pymc3_model_dict['isores']['logs']
 

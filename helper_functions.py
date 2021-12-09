@@ -89,7 +89,7 @@ def load_system_specific_directory():
         return "/mnt/home/kjaehnig/"
 
 
-dd = load_system_specific_directory()
+DD = load_system_specific_directory()
 
 
 def get_multiple_ranges(lk_coll):
@@ -137,7 +137,7 @@ def get_system_data_for_pymc3_model(TICID):
     allvis17 = astab.Table.read("/Users/kjaehnig/CCA_work/GAT/dr17_joker/allVisit-dr17-synspec.fits",hdu=1, format='fits')
     allstar17 = astab.Table.read("/Users/kjaehnig/CCA_work/GAT/dr17_joker/allStar-dr17-synspec-gaiaedr3-xm.fits")
     allstar17 = allstar17[(allstar17['bp_rp'] < 10) & (allstar17['phot_g_mean_mag'] < 25)]
-    calibverr = astab.Table.read(dd+'dr17_joker/allVisit-dr17-synspec-min3-calibverr.fits', format='fits', hdu=1)
+    calibverr = astab.Table.read(DD+'dr17_joker/allVisit-dr17-synspec-min3-calibverr.fits', format='fits', hdu=1)
 
     file = open(f"/Users/kjaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_highres_bls_params.pickle",'rb')
     blsres = pk.load(file)
