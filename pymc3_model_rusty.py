@@ -31,7 +31,11 @@ import arviz as az
 from corner import corner
 
 
+<<<<<<< HEAD
 #dd = "/Users/kjaehnig/CCA_work/GAT/"
+=======
+# dd = "/Users/kjaehnig/CCA_work/GAT/"
+>>>>>>> macos-side
 
 def docs_setup():
     """Set some environment variables and ignore some warnings for the docs"""

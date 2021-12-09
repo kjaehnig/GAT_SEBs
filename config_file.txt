@@ -1,1 +1,5 @@
+<<<<<<< HEAD
 data_dir = "/mnt/home/kjaehnig/pymc3_data_dicts/"
+=======
+DD = "/Users/kjaehnig/CCA_work/GAT/"
+>>>>>>> macos-side

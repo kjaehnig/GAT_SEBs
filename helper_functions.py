@@ -29,7 +29,18 @@ from corner import corner
 from scipy.signal import savgol_filter
 import wquantiles
 
-dd = "/Users/kjaehnig/CCA_work/GAT/"
+
+def readin_config_file():
+    """ Place a config_file.txt within the same repository as this python
+    in order for this function to work and return the data directory
+    """
+    with open("config_file.txt",'r') as f:
+        content = f.read()
+    paths = content.split("\n")
+    for path in paths:
+        # print(f"data directory is set to {path.split(' = ')[1].strip(")}")
+        return path.split(' = ')[1].strip('"')
+
 
 def docs_setup():
     """Set some environment variables and ignore some warnings for the docs"""
@@ -55,6 +66,7 @@ docs_setup()
 
 
 
+<<<<<<< HEAD
 def readin_config_file():
     with open("config_file.txt",'r') as f:
         content = f.read()
@@ -63,6 +75,8 @@ def readin_config_file():
         # print(f'data directory set to {path.split(" = ")[1].strip("'")}')
         return path.split(' = ')[1].strip('"')
 
+=======
+>>>>>>> macos-side
 dd = readin_config_file()
 
 
@@ -207,7 +221,7 @@ def estimate_ecosw(bls2res, blsres):
     return ecosw_testval
 
 
-def get_M1_R1_from_binary_model(TIC_TARGET, nsig=3, fig_dest=None):
+def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None):
     """
     FOR LATER CONSIDERATION:
     IMPLEMENT A RECURSIVE MAD-SIGMA CLIPPING THAT CONTINUES CLIPPING AT 3-MAD-SIGMA UNTIL THERE ARE 
@@ -272,7 +286,7 @@ def get_M1_R1_from_binary_model(TIC_TARGET, nsig=3, fig_dest=None):
     log_s = np.log(mbols / mbolp)[cmplt_mask]
 
     
-    M1R1_mvPrior = np.array([
+    mvPrior = np.array([
                             np.log(m1),
                             np.log(r1),
                              log_q,
@@ -280,11 +294,19 @@ def get_M1_R1_from_binary_model(TIC_TARGET, nsig=3, fig_dest=None):
                           ]
                            )
     
-    M1R1_mu = np.mean(M1R1_mvPrior, axis=-1)
-    M1R1_cov = np.cov(M1R1_mvPrior)
+    mvPrior_mu = np.mean(mvPrior, axis=-1)
+    mvPrior_cov = np.cov(mvPrior)
     
     
-    return (M1R1_mu, M1R1_cov, np.mean(log_k), np.std(log_k), np.mean(np.log(r1)), np.std(np.log(r1)), np.mean(log_s), np.std(log_s), M1R1_mvPrior)
+    return {'mvPrior_mu':mvPrior_mu, 
+            'mvPrior_cov':mvPrior_cov,
+            'logm1':[np.mean(np.log(m1)), np.std(np.log(m1))],
+            'logr1':[np.mean(np.log(r1)), np.std(np.log(r1))],
+            'logq':[np.mean(log_q), np.std(log_q)],
+            'logs':[np.mean(log_s), np.std(log_s)], 
+            'logk':[np.mean(log_k), np.std(log_k)], 
+            'mvPrior':mvPrior
+            }
             
 
 def fold(x, period, t0):
@@ -360,14 +382,25 @@ def check_for_system_directory_rusty_side(DD, TIC_TARGET, return_directories=Fal
 
 
 
-def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3):
+def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, save_data_to_dict=False):
     # TIC_TARGET = 'TIC 20215452'
 
     res, blsres, sysapodat = get_system_data_for_pymc3_model(TIC_TARGET)
 
     sys_dest, fig_dest = check_for_system_directory(TIC_TARGET, return_directories=True)
-    M1R1_mu, M1R1_cov, logk_mu, logk_sig, logr1_mu, logr1_sig, logs_mu, logs_sig, MVpriorDat = get_M1_R1_from_binary_model(
-        TIC_TARGET, nsig=nsig, fig_dest=fig_dest)
+
+
+        # {'mvPrior_mu':mvPrior_mu, 
+        # 'mvPrior_cov':mvPrior_cov,
+        # 'logm1':[np.mean(np.log(m1)), np.std(np.log(m1))],
+        # 'logr1':[np.mean(np.log(r1)), np.std(np.log(r1))],
+        # 'logq':[np.mean(log_q), np.std(log_q)],
+        # 'logs':[np.mean(log_s), np.std(log_s)], 
+        # 'logk':[np.mean(log_k), np.std(log_k)], 
+        # 'mvPrior':mvPrior
+        # }
+
+    isochrones_res_dict = get_isochrones_binmod_res(TIC_TARGET, nsig=nsig, fig_dest=fig_dest)
     
     rv_time = astropy.time.Time(sysapodat['JD'], format='jd', scale='tcb')
     # print(sysapodat['MJD'])
@@ -447,7 +480,7 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3):
     bls2res = highres_secondary_transit_bls(res,blsres)
     ecosw_tv = estimate_ecosw(bls2res, blsres)
 
-    return {
+    compiled_dict =  {
         'texp' : texp,
         'x' : x,
         'y' : y,
@@ -461,14 +494,17 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3):
         'Ntrans' : Ntrans,
         'lit_tn' : lit_tn,
         'ecosw_tv' : ecosw_tv,
-        'isores' : {
-            'logM1Q' : (M1R1_mu, M1R1_cov),
-            'logR1' : (logr1_mu, logr1_sig),
-            'logk' : (logk_mu, logk_sig),
-            'logs' : (logs_mu, logs_sig),
-            'MVdat': MVpriorDat
-        }
+        'isores' : isochrones_res_dict
     }
+
+    if save_data_to_dict:
+        file = open(DD + 
+            f'pymc3_data_dicts/{TIC_TARGET.replace('-','_').replace(' ','_')}_sf{int(sparse_factor)}_pymc3_data_dict','wb')
+        pk.dump(compiled_dict, file)
+        file.close()
+
+        
+    return compiled_dict
 
 
 def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask, 
@@ -606,3 +642,199 @@ def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask,
         return filename
 
 
+def make_folded_lightcurve_from_blsres(TICID):
+    
+    file = open(f"/Users/kjaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_highres_bls_params.pickle",'rb')
+    blsres = pk.load(file)
+    file.close()
+
+    file = open(f"/Users/kjaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_lightcurve_data.pickle","rb")
+    res = pk.load(file)
+    file.close()
+    
+        #     print(calibverr.info)
+    # Grab cross-match IDs
+    sysapodat = allvis17[allvis17['APOGEE_ID'] == res['joker_param']['APOGEE_ID']]
+
+    ## joining calib RV_ERRs with the RVs
+    sysapodat = astab.join(sysapodat, calibverr['VISIT_ID','CALIB_VERR'], keys=('VISIT_ID','VISIT_ID'))
+
+    
+    
+    lks = res['lk_coll'].stitch(corrector_func=lambda x: x.remove_nans().normalize())
+#     print([len(ii) for ii in blsres['period']])
+#     print('sectors: ',res['lk_coll'].sector,'\n'\
+#           'bls_per(s): ',blsres['period'],'\n'\
+#           'MAP_P: ',res['joker_param']['MAP_P'])
+
+    map_period = res['joker_param']['MAP_P']
+    map_t0_bmjd = res['joker_param']['MAP_t0_bmjd']
+    map_t0 = astropy.time.Time(map_t0_bmjd, format='mjd', scale='tcb')
+
+    bls_period = blsres['period_at_max_power'].value
+    bls_t0 = blsres['t0_at_max_power'].value
+        
+    rv_time = astropy.time.Time(sysapodat['MJD'], format='mjd', scale='tcb')
+
+    abs_time_vmin = 0.0
+    abs_time_vmax = max(lks.time.btjd.max()-lks.time.btjd.min(), rv_time.btjd.max()-rv_time.btjd.min())
+#     print(abs_time_vmin, abs_time_vmax)
+    
+    fig,ax = plt.subplots(figsize=(16,20), nrows=4, ncols=2)
+#     ax[-1,-1].remove()
+    
+    fig.text(0.5,0.885,f'un-folded observations (TESS --- APOGEE) [{TICID}]',
+             fontdict={'horizontalalignment':'center','fontweight':'bold','fontsize':14})
+    lc_unfolded = ax[0,0].scatter(lks.time.value, lks.flux.value,marker='o', s=0.5,
+                              c=lks.time.value - lks.time.min().value, 
+                                  vmin=abs_time_vmin, vmax=abs_time_vmax, cmap=cm.inferno)
+
+    rv_unfolded = ax[0,1].plot(rv_time.btjd, 
+                               sysapodat['VHELIO'] - res['joker_param']['MAP_v0'],
+                               marker='o',ls='None',mec='black')
+    
+    fig.text(0.5,0.69,'bls folded observations (TESS --- APOGEE)',
+             fontdict={'horizontalalignment':'center','fontweight':'bold','fontsize':14})
+    
+    Nbins = 100  # int(len(lks.time.value) / 1000.)
+    bins = np.linspace(-0.5*bls_period, 0.5*bls_period, Nbins)
+    x_ = fold(lks.time.value, bls_period, bls_t0)
+    y_ = lks.flux.value
+    num, _ = np.histogram(x_, bins, weights=y_)
+    denom, _ = np.histogram(x_, bins)
+    num[denom > 0] /= denom[denom > 0]
+    num[denom == 0] = np.nan
+#     def running_mean(x, N):
+#         cumsum = np.cumsum(np.insert(x, 0, 0)) 
+#         return (cumsum[N:] - cumsum[:-N]) / float(N)
+    
+#     folded_lcx = fold(lks.time.value, bls_period, bls_t0)
+#     inds = np.argsort(folded_lcx)
+    
+#     folded_rmy = running_mean(lks.flux.value[inds],Nbins)
+    
+#     rmx = np.linspace(folded_lcx.min(), folded_lcx.max(), len(folded_rmy))
+#     folded_rmx = fold(rmx, bls_period, bls_t0)
+    
+    lc_folded_bls = ax[1,0].scatter(fold(lks.time.value, bls_period, bls_t0), 
+               lks.flux.value, marker='o',s=0.5,
+               c=lks.time.value - lks.time.min().value,
+               cmap=cm.inferno, vmin=abs_time_vmin, vmax=abs_time_vmax#fold(lks.time.value, bls_period, bls_t0)
+                )
+    ax[1,0].plot(0.5 * (bins[1:] + bins[:-1]), num, color='white', lw=6,zorder=10)
+    ax[1,0].plot(0.5 * (bins[1:] + bins[:-1]), num, color='cyan', lw=3,zorder=11)
+#     ax[1,0].set_ylim(lks.flux.min(), lks.flux.max())
+    
+    rv_folded_bls = ax[1,1].scatter(fold(sysapodat['MJD'].value, bls_period, blsres['t0_at_max_power'].mjd),
+                                    sysapodat['VHELIO']-res['joker_param']['MAP_v0'],
+                                    marker='o',c=sysapodat['MJD'].value-min(sysapodat['MJD']),
+                                    cmap=cm.inferno, vmin=abs_time_vmin, vmax=abs_time_vmax,
+                                    ec='black')
+    ax[1,1].axvline(0.0,ls='--')
+    ax[1,1].axhline(0.0,ls='--')
+
+    fig.text(0.5,0.49,'MAP folded observations (TESS --- APOGEE)',
+             fontdict={'horizontalalignment':'center','fontweight':'bold','fontsize':14})
+    lc_folded_map = ax[2,0].scatter(fold(lks.time.value, map_period, map_t0.btjd), 
+               lks.flux.value, marker='o',s=0.5,
+               c=lks.time.value - lks.time.min().value,
+               cmap=cm.inferno, vmin=abs_time_vmin, vmax=abs_time_vmax#fold(lks.time.value, bls_period, bls_t0)
+                )
+    
+    rv_folded_map = ax[2,1].scatter(fold(sysapodat['MJD'].value, map_period, map_t0.mjd),
+                                    sysapodat['VHELIO']-res['joker_param']['MAP_v0'],
+                                    marker='o',c=sysapodat['MJD'].value-min(sysapodat['MJD']),
+                                    cmap=cm.inferno, vmin=abs_time_vmin, vmax=abs_time_vmax,
+                                    ec='black')
+    fig.colorbar(rv_folded_map, ax=ax[1:3,1],shrink=1.0, pad=0.01, fraction=0.05,label='days')
+    ax[2,1].axvline(0.0,ls='--')
+    ax[2,1].axhline(0.0,ls='--')
+    
+    ax[3,0].set_title("GAIA CMD Target Location", fontsize=14, fontweight='bold')
+    allstar_Gmag = allstar17['phot_g_mean_mag'] - (5.*np.log10(1000./allstar17['parallax']) - 5.)
+    unimodal_Gmag = hq_jk_allstar_tess_edr3['phot_g_mean_mag'] - (5.*np.log10(1000./hq_jk_allstar_tess_edr3['parallax']) - 5)
+    tess_obs_Gmag = hq_jk_allstar_tess_edr3_w_tess_obs['phot_g_mean_mag'] - (
+                        5.*np.log10(1000./hq_jk_allstar_tess_edr3_w_tess_obs['parallax']) - 5)
+    target_Gmag = res['joker_param']['phot_g_mean_mag'] - (5.*np.log10(1000./res['joker_param']['parallax']) - 5.)
+    
+    ax[3,0].plot(allstar17['bp_rp'], allstar_Gmag,
+                 marker=',',color='gray', ls='None',label='allstar')
+    ax[3,0].plot(hq_jk_allstar_tess_edr3['bp_rp'],unimodal_Gmag,
+                 marker='.',color='tab:red',ls='None', label='unimodal')
+    ax[3,0].plot(hq_jk_allstar_tess_edr3_w_tess_obs['bp_rp'], tess_obs_Gmag,
+                 marker='^',ms=8,color='black',ls='None',mfc='None',label='unimodal w TESS')
+    ax[3,0].plot(res['joker_param']['bp_rp'],target_Gmag,
+                 marker='^',ms=8,color='tab:blue',lw=2,ls='None',label=TICID)
+    ax[3,0].set_ylim(15,-15)
+    ax[3,0].set_xlim(-1,7)
+    ax[3,0].legend(fontsize=10)
+    
+    joker_param = hq_jk_allstar_tess_edr3.to_pandas()[hq_jk_allstar_tess_edr3['APOGEE_ID'] == res['joker_param']['APOGEE_ID']]
+#     print(joker_param['phot_g_mean_mag'])
+    param_str = (f"Gaia G: {joker_param['phot_g_mean_mag'].squeeze()}\nTeff: {int(joker_param['TEFF'].squeeze())}\nLogG: {joker_param['LOGG'].squeeze()}\nM_H: {joker_param['M_H'].squeeze()}\necc: {joker_param['MAP_e'].squeeze()}\nMAP_P: {joker_param['MAP_P'].squeeze()}\nBLS_P: {bls_period}")
+    ax[3,1].scatter(0,0,ec='None',fc='None',label=param_str)
+    ax[3,1].legend(loc='center',scatterpoints=0, fontsize=18, frameon=False)
+    
+#     fig.colorbar(lc_folded_)
+#     ax.set_xlim(-1,1)
+
+
+def get_all_transit_params(TIC_ID, jk_row):
+    
+    res = {'periods':[],
+          'durations':[],
+          't0s':[],
+          'depths':[]}
+    
+    period_grid = np.exp(np.linspace(np.log(0.5*jk_row['MAP_P']),
+                                     np.log(2.*jk_row['MAP_P']),
+                                     10000)).squeeze()
+    
+#     period_grid = np.exp(np.linspace(np.log(0.1), np.log(100),1000))
+    dur_grid = np.exp(np.linspace(np.log(0.001),np.log(0.09),50))
+
+    npts = 5000
+    pmin = period_grid.min()
+    pmax = period_grid.max()
+    mindur = dur_grid.min()
+
+    print("Downloading all available TESS data.")
+    lk_search = lk.search_lightcurve(TIC_ID,
+             mission='TESS',
+            cadence='short',
+            author='SPOC'
+             )
+    
+    unprocessed_lkcoll = lk_search.download_all(quality_bitmask='hardest')
+    all_lks = unprocessed_lkcoll.stitch(corrector_func=lambda x: x.remove_nans().normalize().flatten())
+    
+    print("Separating TESS sector data into groups.")
+    _, __, grp_ind = get_multiple_ranges(unprocessed_lkcoll)
+    
+    for ii,ind in enumerate(grp_ind):
+        
+        print(f"Running BLS on group {ii}, sectors: {unprocessed_lkcoll[ind].sector}")
+        lkgrp = unprocessed_lkcoll[ind].stitch(corrector_func=lambda x: x.remove_nans().normalize().flatten())
+        
+        maxtime = lkgrp.time.max().value
+        mintime = lkgrp.time.min().value
+
+        freq_f = int( ((pmin**-1 - pmax**-1) * (maxtime - mintime)**2) / (npts * mindur) ) 
+        
+        lkgrpBLS = lkgrp.to_periodogram('bls',
+                                period=period_grid,
+                                frequency_factor = freq_f, duration=dur_grid)
+        
+        res['periods'].append(lkgrpBLS.period_at_max_power.value)
+        res['t0s'].append(lkgrpBLS.transit_time_at_max_power)
+        res['durations'].append(lkgrpBLS.duration_at_max_power.value)
+        res['depths'].append(lkgrpBLS.depth_at_max_power)
+        
+    print("Finished.")
+    res['unprocessed_lk_coll'] = unprocessed_lkcoll
+    res['all_lks'] = all_lks
+    res['period_linspace'] = [0.5*jk_row['MAP_P'], 2.*jk_row['MAP_P'], len(period_grid)]
+    res['dur_linspace'] = [0.001,0.09, len(dur_grid)]
+    res['freq_factor'] = freq_f
+    
+    return res
