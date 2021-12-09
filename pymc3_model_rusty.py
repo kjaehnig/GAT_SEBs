@@ -65,7 +65,7 @@ docs_setup()
 
 
 #DD = "/Users/kjaehnig/CCA_work/GAT/"
-DD = "/mnt/home/kjaehnig/"
+DD = hf.load_system_specific_directory()
 
 def load_construct_run_pymc3_model(
                                     TIC_TARGET=20215452, 
