@@ -30,16 +30,17 @@ from scipy.signal import savgol_filter
 import wquantiles
 
 
-def readin_config_file():
-    """ Place a config_file.txt within the same repository as this python
-    in order for this function to work and return the data directory
-    """
-    with open("config_file.txt",'r') as f:
-        content = f.read()
-    paths = content.split("\n")
-    for path in paths:
-        # print(f"data directory is set to {path.split(' = ')[1].strip(")}")
-        return path.split(' = ')[1].strip('"')
+# def readin_config_file():
+#     """ Place a config_file.txt within the same repository as this python
+#     in order for this function to work and return the data directory
+#     """
+#     with open("/Users/kjaehnig/Repositories/GAT_SEBs/config_file.txt",'r') as f:
+#         content = f.read()
+#     paths = content.split("\n")
+#     print(paths)
+#     for path in paths:
+#         # print(f"data directory is set to {path.split(' = ')[1].strip(")}")
+#         return path.split(' = ')[1].strip('"')
 
 
 def docs_setup():
@@ -66,19 +67,29 @@ docs_setup()
 
 
 
-<<<<<<< HEAD
-def readin_config_file():
-    with open("config_file.txt",'r') as f:
-        content = f.read()
-    paths = content.split("\n")
-    for path in paths:
-        # print(f'data directory set to {path.split(" = ")[1].strip("'")}')
-        return path.split(' = ')[1].strip('"')
+# def readin_config_file():
+#     with open("config_file.txt",'r') as f:
+#         content = f.read()
+#     paths = content.split("\n")
+#     for path in paths:
+#         # print(f'data directory set to {path.split(" = ")[1].strip("'")}')
+#         return path.split(' = ')[1].strip('"')
 
-=======
->>>>>>> macos-side
-dd = readin_config_file()
 
+def load_system_specific_directory():
+
+    import sys
+    what_machine_am_i_on = sys.platform
+
+    if what_machine_am_i_on == 'darwin':
+        print("running on macOS")
+        return "/Users/kjaehnig/CCA_work/GAT/"
+    if what_machine_am_i_on == 'linux' or what_machine_am_i_on == 'linux2':
+        print("running on linux")
+        return "/mnt/home/kjaehnig/"
+
+
+dd = load_system_specific_directory()
 
 
 def get_multiple_ranges(lk_coll):
@@ -499,7 +510,7 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, save_data
 
     if save_data_to_dict:
         file = open(DD + 
-            f'pymc3_data_dicts/{TIC_TARGET.replace('-','_').replace(' ','_')}_sf{int(sparse_factor)}_pymc3_data_dict','wb')
+            f"pymc3_data_dicts/{TIC_TARGET.replace('-','_').replace(' ','_')}_sf{int(sparse_factor)}_pymc3_data_dict",'wb')
         pk.dump(compiled_dict, file)
         file.close()
 
