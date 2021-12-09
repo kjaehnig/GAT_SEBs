@@ -210,7 +210,7 @@ def estimate_ecosw(bls2res, blsres):
     return ecosw_testval
 
 
-def get_M1_R1_from_binary_model(TIC_TARGET, nsig=3, fig_dest=None):
+def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None):
     """
     FOR LATER CONSIDERATION:
     IMPLEMENT A RECURSIVE MAD-SIGMA CLIPPING THAT CONTINUES CLIPPING AT 3-MAD-SIGMA UNTIL THERE ARE 
@@ -275,7 +275,7 @@ def get_M1_R1_from_binary_model(TIC_TARGET, nsig=3, fig_dest=None):
     log_s = np.log(mbols / mbolp)[cmplt_mask]
 
     
-    M1R1_mvPrior = np.array([
+    mvPrior = np.array([
                             np.log(m1),
                             np.log(r1),
                              log_q,
@@ -283,11 +283,19 @@ def get_M1_R1_from_binary_model(TIC_TARGET, nsig=3, fig_dest=None):
                           ]
                            )
     
-    M1R1_mu = np.mean(M1R1_mvPrior, axis=-1)
-    M1R1_cov = np.cov(M1R1_mvPrior)
+    mvPrior_mu = np.mean(mvPrior, axis=-1)
+    mvPrior_cov = np.cov(mvPrior)
     
     
-    return (M1R1_mu, M1R1_cov, np.mean(log_k), np.std(log_k), np.mean(np.log(r1)), np.std(np.log(r1)), np.mean(log_s), np.std(log_s), M1R1_mvPrior)
+    return {'mvPrior_mu':mvPrior_mu, 
+            'mvPrior_cov':mvPrior_cov,
+            'logm1':[np.mean(np.log(m1)), np.std(np.log(m1))],
+            'logr1':[np.mean(np.log(r1)), np.std(np.log(r1))],
+            'logq':[np.mean(log_q), np.std(log_q)],
+            'logs':[np.mean(log_s), np.std(log_s)], 
+            'logk':[np.mean(log_k), np.std(log_k)], 
+            'mvPrior':mvPrior
+            }
             
 
 def fold(x, period, t0):
@@ -363,14 +371,25 @@ def check_for_system_directory_rusty_side(DD, TIC_TARGET, return_directories=Fal
 
 
 
-def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3):
+def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, save_data_to_dict=False):
     # TIC_TARGET = 'TIC 20215452'
 
     res, blsres, sysapodat = get_system_data_for_pymc3_model(TIC_TARGET)
 
     sys_dest, fig_dest = check_for_system_directory(TIC_TARGET, return_directories=True)
-    M1R1_mu, M1R1_cov, logk_mu, logk_sig, logr1_mu, logr1_sig, logs_mu, logs_sig, MVpriorDat = get_M1_R1_from_binary_model(
-        TIC_TARGET, nsig=nsig, fig_dest=fig_dest)
+
+
+        # {'mvPrior_mu':mvPrior_mu, 
+        # 'mvPrior_cov':mvPrior_cov,
+        # 'logm1':[np.mean(np.log(m1)), np.std(np.log(m1))],
+        # 'logr1':[np.mean(np.log(r1)), np.std(np.log(r1))],
+        # 'logq':[np.mean(log_q), np.std(log_q)],
+        # 'logs':[np.mean(log_s), np.std(log_s)], 
+        # 'logk':[np.mean(log_k), np.std(log_k)], 
+        # 'mvPrior':mvPrior
+        # }
+
+    isochrones_res_dict = get_isochrones_binmod_res(TIC_TARGET, nsig=nsig, fig_dest=fig_dest)
     
     rv_time = astropy.time.Time(sysapodat['JD'], format='jd', scale='tcb')
     # print(sysapodat['MJD'])
@@ -450,7 +469,7 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3):
     bls2res = highres_secondary_transit_bls(res,blsres)
     ecosw_tv = estimate_ecosw(bls2res, blsres)
 
-    return {
+    compiled_dict =  {
         'texp' : texp,
         'x' : x,
         'y' : y,
@@ -464,14 +483,17 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3):
         'Ntrans' : Ntrans,
         'lit_tn' : lit_tn,
         'ecosw_tv' : ecosw_tv,
-        'isores' : {
-            'logM1Q' : (M1R1_mu, M1R1_cov),
-            'logR1' : (logr1_mu, logr1_sig),
-            'logk' : (logk_mu, logk_sig),
-            'logs' : (logs_mu, logs_sig),
-            'MVdat': MVpriorDat
-        }
+        'isores' : isochrones_res_dict
     }
+
+    if save_data_to_dict:
+        file = open(DD + 
+            f'pymc3_data_dicts/{TIC_TARGET.replace('-','_').replace(' ','_')}_sf{int(sparse_factor)}_pymc3_data_dict','wb')
+        pk.dump(compiled_dict, file)
+        file.close()
+
+        
+    return compiled_dict
 
 
 def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask, 
@@ -744,3 +766,64 @@ def make_folded_lightcurve_from_blsres(TICID):
     
 #     fig.colorbar(lc_folded_)
 #     ax.set_xlim(-1,1)
+
+
+def get_all_transit_params(TIC_ID, jk_row):
+    
+    res = {'periods':[],
+          'durations':[],
+          't0s':[],
+          'depths':[]}
+    
+    period_grid = np.exp(np.linspace(np.log(0.5*jk_row['MAP_P']),
+                                     np.log(2.*jk_row['MAP_P']),
+                                     10000)).squeeze()
+    
+#     period_grid = np.exp(np.linspace(np.log(0.1), np.log(100),1000))
+    dur_grid = np.exp(np.linspace(np.log(0.001),np.log(0.09),50))
+
+    npts = 5000
+    pmin = period_grid.min()
+    pmax = period_grid.max()
+    mindur = dur_grid.min()
+
+    print("Downloading all available TESS data.")
+    lk_search = lk.search_lightcurve(TIC_ID,
+             mission='TESS',
+            cadence='short',
+            author='SPOC'
+             )
+    
+    unprocessed_lkcoll = lk_search.download_all(quality_bitmask='hardest')
+    all_lks = unprocessed_lkcoll.stitch(corrector_func=lambda x: x.remove_nans().normalize().flatten())
+    
+    print("Separating TESS sector data into groups.")
+    _, __, grp_ind = get_multiple_ranges(unprocessed_lkcoll)
+    
+    for ii,ind in enumerate(grp_ind):
+        
+        print(f"Running BLS on group {ii}, sectors: {unprocessed_lkcoll[ind].sector}")
+        lkgrp = unprocessed_lkcoll[ind].stitch(corrector_func=lambda x: x.remove_nans().normalize().flatten())
+        
+        maxtime = lkgrp.time.max().value
+        mintime = lkgrp.time.min().value
+
+        freq_f = int( ((pmin**-1 - pmax**-1) * (maxtime - mintime)**2) / (npts * mindur) ) 
+        
+        lkgrpBLS = lkgrp.to_periodogram('bls',
+                                period=period_grid,
+                                frequency_factor = freq_f, duration=dur_grid)
+        
+        res['periods'].append(lkgrpBLS.period_at_max_power.value)
+        res['t0s'].append(lkgrpBLS.transit_time_at_max_power)
+        res['durations'].append(lkgrpBLS.duration_at_max_power.value)
+        res['depths'].append(lkgrpBLS.depth_at_max_power)
+        
+    print("Finished.")
+    res['unprocessed_lk_coll'] = unprocessed_lkcoll
+    res['all_lks'] = all_lks
+    res['period_linspace'] = [0.5*jk_row['MAP_P'], 2.*jk_row['MAP_P'], len(period_grid)]
+    res['dur_linspace'] = [0.001,0.09, len(dur_grid)]
+    res['freq_factor'] = freq_f
+    
+    return res
