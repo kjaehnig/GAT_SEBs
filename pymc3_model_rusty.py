@@ -457,10 +457,10 @@ def load_construct_run_pymc3_model(
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
             filename_list.append(plot)
             
-            map_soln, info_ = pmx.optimize(map_soln, [mean_rv,mean_lc], return_info=True)
+            map_soln, info_ = pmx.optimize(map_soln, [mean_rv,mean_lc, log_sigma_rv], return_info=True)
             plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title=' after [mean_lc, mean_rv] opt step',
-                                                     filename=filename_base+' after [mean_lc, mean_rv] opt step'.replace(' ','_'),
+                                                     filename=filename_base+' after [mean_lc, mean_rv, log_sigma_rv] opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
             filename_list.append(plot)
     #         map_soln, info_ = pmx.optimize(map_soln, M1R1_prior, return_info=True)
@@ -475,12 +475,12 @@ def load_construct_run_pymc3_model(
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
                 filename_list.append(plot) 
                 
-            map_soln, info_ = pmx.optimize(map_soln, log_sigma_rv, return_info=True)
-            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
-                                                     title=' after [log_sigma_rv] opt step',
-                                                     filename=filename_base + ' after [log_sigma_rv] opt step'.replace(' ','_'),
-                                                     RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
-            filename_list.append(plot)
+            # map_soln, info_ = pmx.optimize(map_soln, log_sigma_rv, return_info=True)
+            # plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+            #                                          title=' after [log_sigma_rv] opt step',
+            #                                          filename=filename_base + ' after [log_sigma_rv] opt step'.replace(' ','_'),
+            #                                          RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
+            # filename_list.append(plot)
             
             map_soln, info_ = pmx.optimize(map_soln, BigPrior, return_info=True)
             plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
