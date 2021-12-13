@@ -562,7 +562,8 @@ def load_construct_run_pymc3_model(
 
     if 'pymc3_models' not in os.listdir(DD):
         os.mkdir(DD+'pymc3_models')
-    file = open(f"{DD}/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_{SUFFIX}.pickle",'wb')
+    pymc3_DD = DD + 'pymc3_models'
+    file = open(f"{pymc3_DD}/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_{SUFFIX}.pickle",'wb')
     pk.dump({
             'trace':trace,
              'mask':mask,
