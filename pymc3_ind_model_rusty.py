@@ -77,7 +77,7 @@ def load_construct_run_pymc3_model(
                                     sparse_factor=5, 
                                     nsig=5):
 
-
+    mf = mult_factor
    
     ##sys.stdout = open('file', 'w')
     print(f'starting model setup and run for TIC-{TIC_TARGET}')
@@ -103,7 +103,7 @@ def load_construct_run_pymc3_model(
     if abs(ecosw_tv) > 0.01:
         ecosw_tv = np.sign(ecosw_tv) * 0.01
 
-
+    SUFFIX = f'individual_priors_{int(mf)}x_isochrones'
 
     LOGiso_M1 = pymc3_model_dict['isores']['logm1']
     LOGiso_R1 = pymc3_model_dict['isores']['logr1']
@@ -112,14 +112,14 @@ def load_construct_run_pymc3_model(
     LOGiso_s = pymc3_model_dict['isores']['logs']
 
 
-    t = np.linspace(x_rv.min(), x_rv.max(), 5000)
+    trv = np.linspace(x_rv.min(), x_rv.max(), 5000)
     tlc = np.linspace(x.min(), x.max(), 5000)
 
     # rvK = xo.estimate_semi_amplitude(bls_period, x_rv, y_rv*u.km/u.s, yerr_rv*u.km/u.s, t0s=bls_t0)[0]
     # print(rvK)
 
     # mask = x < 400
-    def build_model(mask=None, start=None, plot_MAP_diagnostic_rv_curves=False):
+    def build_model(mask=None, start=None, suffix=None, pymc3_model_dict=None):
         if mask is None:
             mask = np.ones(len(x), dtype='bool')
         with pm.Model() as model:
@@ -337,7 +337,7 @@ def load_construct_run_pymc3_model(
             list_of_map_vars = list(map_vars_dict.keys())
             
 
-            filename_base = f"{fig_dest}{TIC_TARGET.replace(' ','_')}_individual_priors"
+            filename_base = f"{fig_dest}{TIC_TARGET.replace(' ','_')}_{suffix}"
             
             plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, start, extras, mask, 
                                                      title=' after start point opt step',
@@ -348,7 +348,7 @@ def load_construct_run_pymc3_model(
             map_soln, info_ = pmx.optimize(start, log_k, return_info=True)
             plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title='after log_k opt step',
-                                                     filename=filename_base + 'after log_k opt step.png'.replace(' ','_'),
+                                                     filename=filename_base + ' after log_k opt step.png'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
             filename_list.append(plot)
             
@@ -438,9 +438,8 @@ def load_construct_run_pymc3_model(
 
 
 
-    model, map_soln, extras, start, opti_logp, filename_list = build_model(
-        plot_MAP_diagnostic_rv_curves=True, suffix=suffix,
-        pymc3_model_dict=pymc3_model_dict)
+    model, map_soln, extras, start, opti_logp, filename_list = \
+        build_model(suffix=SUFFIX, pymc3_model_dict=pymc3_model_dict)
 
     import imageio
     images = []
@@ -451,7 +450,7 @@ def load_construct_run_pymc3_model(
     filename_list.append(filename_list[-1])
     for filename in filename_list:
         images.append(imageio.imread(filename))
-    imageio.mimsave(tic_dest+f"/{TIC_TARGET.replace(' ','_')}_{suffix}__diagnostic_movie_test.gif", images, fps=0.75)
+    imageio.mimsave(tic_dest+f"/{TIC_TARGET.replace(' ','_')}_{SUFFIX}__diagnostic_movie_test.gif", images, fps=0.75)
 
     print("#" * 50)
     print("#"*19 +"  FINISHED  " + "#"*19)
@@ -476,19 +475,18 @@ def load_construct_run_pymc3_model(
     plt.xlabel("time [days]")
     plt.legend(fontsize=12, loc=3)
     _ = plt.xlim(x.min(), x.max())
-    plt.savefig(fig_dest + f"{TIC_TARGET}_{suffix}_sigma_cliped_lightcurve_plot.png", dpi=150, bbox_inches='tight')
+    plt.savefig(fig_dest + f"{TIC_TARGET}_{SUFFIX}_sigma_cliped_lightcurve_plot.png", dpi=150, bbox_inches='tight')
     plt.close()
 
     print("#" * 50)
     print("Starting 2nd round of MAP optimizations.")
     print("#" * 50)
+    SUFFIX = SUFFIX + "_2nd_rnd"
     model, map_soln, extras, start, opti_logp,_ = build_model(
-            mask, map_soln, plot_MAP_diagnostic_rv_curves=False,
-            suffix=suffix+"_2nd_rnd",
-            pymc3_model_dict=None)
+            mask, map_soln, suffix=SUFFIX, pymc3_model_dict=None)
 
     # ###### quick fix to save x and y to the main file dump #######
-    # file = open(f"/Users/kjaehnig/CCA_work/GAT/pymc3_models/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_{suffix}.pickle",'rb')
+    # file = open(f"/Users/kjaehnig/CCA_work/GAT/pymc3_models/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_{SUFFIX}.pickle",'rb')
     # indres = pk.load(file)
     # file.close()
 
@@ -499,7 +497,7 @@ def load_construct_run_pymc3_model(
     #         pmx.eval_in_model(extras["gp_lc_pred"], map_soln)
     #     )
     # indres['gp_pred'] = gp_pred
-    # file = open(f"/Users/kjaehnig/CCA_work/GAT/pymc3_models/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_{suffix}.pickle",'wb')
+    # file = open(f"/Users/kjaehnig/CCA_work/GAT/pymc3_models/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_{SUFFIX}.pickle",'wb')
     # pk.dump(indres, file)
     # file.close()
     # print("DONE")
@@ -564,7 +562,7 @@ def load_construct_run_pymc3_model(
 
     if 'pymc3_models' not in os.listdir(DD):
         os.mkdir(DD+'pymc3_models')
-    file = open(f"{DD}/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_{suffix}.pickle",'wb')
+    file = open(f"{DD}/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_{SUFFIX}.pickle",'wb')
     pk.dump({
             'trace':trace,
              'mask':mask,
@@ -651,7 +649,7 @@ def load_construct_run_pymc3_model(
     axes[1].set_xlabel("phase [days]")
     axes[1].set_ylabel("flux [ppt]")
 
-    plt.savefig(fig_dest + f"{TIC_TARGET.replace(' ','_').replace('-','_')}_{suffix}_rvphase_plot.png",dpi=150,bbox_inches='tight')
+    plt.savefig(fig_dest + f"{TIC_TARGET.replace(' ','_').replace('-','_')}_{SUFFIX}_rvphase_plot.png",dpi=150,bbox_inches='tight')
     plt.close()
 
     ##sys.stdout.close()
