@@ -349,8 +349,8 @@ def load_construct_run_pymc3_model(
     #         # Set up the radial velocity model
 
 
-            log_sigma_rv = pm.Normal(
-                "log_sigma_rv", mu=np.log(np.median(yerr_rv)), sd=10., testval=np.log(np.median(yerr_rv))
+            log_sigma_rv =  pm.Bound(pm.Normal, upper=np.log(10))(
+                "log_sigma_rv", mu=np.log(np.median(yerr_rv)), sd=10.0, testval=np.log(np.median(yerr_rv))
             )
 
             def model_rv(t):
