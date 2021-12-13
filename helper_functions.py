@@ -635,7 +635,11 @@ def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask,
     
     x_rv_fold = fold(x_rv, period, t0)
     ax4.plot(x_phase, y_rv_mod, "C0")
-    ax4.errorbar(x_rv_fold, y_rv-mean, yerr=np.sqrt(np.exp(2.*soln['log_sigma_rv']) + yerr_rv**2.),
+    if 'log_sigma_rv' not in list(soln.keys()):
+        lsig_rv = soln['log_sigma_rv_upperbound__']
+    else:
+        lsig_rv = soln['log_sigma_rv']
+    ax4.errorbar(x_rv_fold, y_rv-mean, yerr=np.sqrt(np.exp(2.*lsig_rv) + yerr_rv**2.),
                  fmt='.',c='black',ecolor='red', label='RV obs')
     ax4.set_title(title)
     
@@ -643,7 +647,7 @@ def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask,
     x1,x2 = ax4.set_xlim()
     ax4.vlines(0.25*(x2-x1) + x1,
                0.25*(y2-y1) + y1,
-               0.25*(y2-y1) + y1 + np.exp(soln['log_sigma_rv'])
+               0.25*(y2-y1) + y1 + np.exp(lsig_rv)
               )
     filename = filename + '.png'
     plt.savefig(filename, bbox_inches='tight', dpi=150)
