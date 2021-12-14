@@ -69,7 +69,6 @@ DD = hf.load_system_specific_directory()
 
 def load_construct_run_pymc3_model(
                                     TIC_TARGET=20215452, 
-                                    COVARIANCE_USE_TYPE='diagonal',
                                     mult_factor=1,
                                     Ntune=1000, 
                                     Ndraw=500, 
@@ -78,6 +77,8 @@ def load_construct_run_pymc3_model(
                                     nsig=5):
 
     mf = mult_factor
+    print(f"running with multiplicative factor of {int(mult_factor)}x")
+
    
     ##sys.stdout = open('file', 'w')
     print(f'starting model setup and run for TIC-{TIC_TARGET}')
@@ -481,9 +482,9 @@ def load_construct_run_pymc3_model(
     print("#" * 50)
     print("Starting 2nd round of MAP optimizations.")
     print("#" * 50)
-    SUFFIX = SUFFIX + "_2nd_rnd"
+    SUFFIX2 = SUFFIX + "_2nd_rnd"
     model, map_soln, extras, start, opti_logp,_ = build_model(
-            mask, map_soln, suffix=SUFFIX, pymc3_model_dict=None)
+            mask, map_soln, suffix=SUFFIX2, pymc3_model_dict=None)
 
     # ###### quick fix to save x and y to the main file dump #######
     # file = open(f"/Users/kjaehnig/CCA_work/GAT/pymc3_models/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_{SUFFIX}.pickle",'rb')
@@ -668,8 +669,6 @@ def load_construct_run_pymc3_model(
 result = OptionParser()
 result.add_option('--tic', dest='TIC_TARGET', default=20215452, type='int', 
                 help='tic ID number of target (defaults to 20215451)')
-result.add_option('--CovType', dest='COVARIANCE_USE_TYPE', default='diagonal', type='str',
-                help='type of covariance matrix to use in multivariate prior (defaults to "diagonal")')
 result.add_option("--mf", dest='mult_factor', default=1, type='int',
                 help='multiplicative factor by which to increase multivariate prior variances (default: 1)')
 result.add_option("--nt", dest="Ntune", default=1000, type='int',
