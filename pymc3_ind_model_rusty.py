@@ -333,7 +333,6 @@ def load_construct_run_pymc3_model(
                 'log_R1': log_R1,
                 'mean_lc': mean_lc,
                 'mean_rv': mean_rv,
-                'lsig_rv':log_sigma_rv
             }
             list_of_map_vars = list(map_vars_dict.keys())
             
@@ -421,7 +420,14 @@ def load_construct_run_pymc3_model(
                                                      filename=filename_base + ' after GP params opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
             filename_list.append(plot)
-            
+
+            map_soln, info_ = pmx.optimize(map_soln, [log_sigma_rv], return_info=True)
+            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+                                                     title=' after lsig_rv params opt step',
+                                                     filename=filename_base + ' after lsig_rv params opt step'.replace(' ','_'),
+                                                     RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
+            filename_list.append(plot)
+
             map_soln, info_ = pmx.optimize(map_soln, 
                                            return_info=True)
             plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
