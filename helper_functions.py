@@ -133,6 +133,8 @@ def load_precompiled_pymc3_model_data(DD=None, TIC_TARGET=None, sparse_factor=5)
         raise Exception(f"There is no dict file for {TIC_TARGET} with SF= {int(sparse_factor)}")
 
 
+
+
 def get_system_data_for_pymc3_model(TICID):
     allvis17 = astab.Table.read("/Users/kjaehnig/CCA_work/GAT/dr17_joker/allVisit-dr17-synspec.fits",hdu=1, format='fits')
     allstar17 = astab.Table.read("/Users/kjaehnig/CCA_work/GAT/dr17_joker/allStar-dr17-synspec-gaiaedr3-xm.fits")
@@ -320,6 +322,61 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None):
             }
             
 
+
+def print_out_stellar_type(M,R):
+
+    O_cond = (M >= 16) & (R >= 6.6)
+    B_cond = (M >= 2.1) & (M < 16) & (R >= 1.8) & (R < 6.6)
+    A_cond = (M >= 1.4) & (M < 2.1) & (R >= 1.4) & (R < 1.8)
+    F_cond = (M >= 1.04) & (M < 1.4) & (R >= 1.15) & (R < 1.4)
+    G_cond = (M >= 0.8) & (M < 1.04) & (R >= 0.96) & (R < 1.15)
+    K_cond = (M >= 0.45) & (M < 0.8) & (R >= 0.7) & (R < 0.96)
+    M_cond = (M >= 0.08) & (M < 0.45) & (R < 0.7)
+
+    all_stellar_types = ['O','B','A','F','G','K','M']
+    all_stellar_conds = [O_cond, B_cond, A_cond, F_cond,
+                        G_cond, K_cond, M_cond]
+
+    mask = [i for i, x in enumerate(all_stellar_conds) if x]
+    if np.any(mask):
+        return all_stellar_types[mask[0]]
+    if np.all(mask):
+        return 'None'
+
+
+def write_a_story_for_system(TIC_TARGET='TIC 20215452', model_type='1x',
+                    Ntune=1000, Ndraw=500, chains=4):
+
+    file = open(f"/Users/kjaehnig/CCA_work/GAT/pymc3_models/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_individual_priors_{model_type}_isochrones.pickle",'rb')
+    res_dict = pk.load(file)
+    file.close()
+
+    flat_samps = res_dict['trace'].posterior.stack(sample=('chain','draw'))
+
+    m1 = flat_samps['M1'].median().values
+    r1 = flat_samps['R1'].median().values
+    logg1 = np.log(m1) - 2.*np.log(r1) + 4.437
+    stype1 = print_out_stellar_type(m1,r1)
+
+    m2 = flat_samps['M2'].median().values
+    r2 = flat_samps['R2'].median().values
+    logg2 = np.log(m2) - 2.*np.log(r2) + 4.437
+    stype2 = print_out_stellar_type(m2,r2)
+
+    a = flat_samps['a'].median().values
+    incl = flat_samps['incl'].median().values
+
+    ecc = flat_samps['ecc'].median().values
+
+    period = flat_samps['period'].median().values
+
+    print(f"Report on {TIC_TARGET}.")
+    print(f"M1 has a mass: {m1:.3f} Msol, radius: {r1:.3f} Rsol, logG: {logg1:3f} and stellar type {stype1}")
+    print(f"M2 has a mass: {m2:.3f} Msol, radius: {r2:.3f} Rsol, logG: {logg2:3f} and stellar type {stype2}")
+    print(f"The binary system has inclination: {incl:.3f}, semi-major axis: {a:.3f} AU, and ecc: {ecc:3f}.")
+    print(f"This binary system has a period of {period:.3f} days.")
+
+
 def fold(x, period, t0):
     hp = 0.5 * period
     return (x - t0 + hp) % period - hp
@@ -505,7 +562,8 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, save_data
         'Ntrans' : Ntrans,
         'lit_tn' : lit_tn,
         'ecosw_tv' : ecosw_tv,
-        'isores' : isochrones_res_dict
+        'isores' : isochrones_res_dict,
+        'sys_params' : res['joker_param']
     }
 
     if save_data_to_dict:
