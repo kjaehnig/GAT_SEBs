@@ -82,7 +82,7 @@ def load_construct_run_pymc3_model(
                                     sparse_factor=5, 
                                     nsig=5):
 
-    theano_root = DD + f"/mcmc_chains/"
+    theano_root = DD + f"mcmc_chains/"
 
     print(f'theano_root_dir = {theano_root}')
 
