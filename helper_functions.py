@@ -345,7 +345,7 @@ def print_out_stellar_type(M,R):
 
 
 def write_a_story_for_system(TIC_TARGET='TIC 20215452', model_type='1x',
-                    Ntune=1000, Ndraw=500, chains=4):
+                    Ntune=1000, Ndraw=500, chains=4, return_dict=False):
 
     file = open(f"/Users/kjaehnig/CCA_work/GAT/pymc3_models/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_individual_priors_{model_type}_isochrones.pickle",'rb')
     res_dict = pk.load(file)
@@ -365,16 +365,78 @@ def write_a_story_for_system(TIC_TARGET='TIC 20215452', model_type='1x',
 
     a = flat_samps['a'].median().values
     incl = flat_samps['incl'].median().values
-
     ecc = flat_samps['ecc'].median().values
-
     period = flat_samps['period'].median().values
+    omega = flat_samps['omega'].median().values
 
     print(f"Report on {TIC_TARGET}.")
     print(f"M1 has a mass: {m1:.3f} Msol, radius: {r1:.3f} Rsol, logG: {logg1:3f} and stellar type {stype1}")
     print(f"M2 has a mass: {m2:.3f} Msol, radius: {r2:.3f} Rsol, logG: {logg2:3f} and stellar type {stype2}")
     print(f"The binary system has inclination: {incl:.3f}, semi-major axis: {a:.3f} AU, and ecc: {ecc:3f}.")
     print(f"This binary system has a period of {period:.3f} days.")
+
+    if return_dict:
+        return {'m1':m1,'r1':r1,'logg1':logg1,'stype1':stype1,
+                'm2':m2,'r2':r2,'logg2':logg2,'stype2':stype2,
+                'a':a,'incl':incl,'ecc':ecc,'period':period, 'omega':omega}
+
+
+def get_nearest_eep_from_logg(TIC_ID):
+
+
+    eep_dict = {1: 'PMS',
+         202: 'ZAMS',
+         353: 'IAMS',
+         454: 'TAMS',
+         605: 'RGBTip',
+         631: 'ZAHB',
+         707: 'TAHB',
+         808: 'TPAGB',
+         1409: 'post-AGB',
+         1710: 'WDCS'}
+    primary_eeps = np.array([1, 202, 353, 454, 605, 631, 707, 808, 1409, 1710])
+
+    ticparams = get_system_data_for_pymc3_model(TIC_ID.replace(' ','_').replace('-','_'))
+
+    FEH = ticparams[0]['joker_param']['FE_H']
+
+    sysparams = write_a_story_for_system(TIC_TARGET=TIC_ID,
+                                        model_type='8x',chains=6,return_dict=True)
+
+    print(sysparams)
+    M1,LOGG1 = sysparams['m1'],sysparams['logg1']
+    M2,LOGG2 = sysparams['m2'],sysparams['logg2']
+
+    valid_eep1,valid_eep2 = [],[]
+
+    ages = np.linspace(6, 10.12, 25000)
+
+    from isochrones.mist import MIST_EvolutionTrack
+    mtrack = MIST_EvolutionTrack()
+
+    for iage in tqdm(ages):
+        # try:
+        test_eep1 = mtrack.get_eep_accurate(mass=M1, age=iage, feh=FEH)
+        valid_eep1.append(test_eep1)
+
+
+        try:
+            test_eep2 = mtrack.get_eep_accurate(M2, iage, FEH)
+            valid_eep2.append(test_eep2)
+        except:
+            continue 
+    print(len(valid_eep1), len(valid_eep2))
+    valid_logg1 = [mtrack.interp_value([M1, ee, FEH], ['logg'])[0] for ee in valid_eep1]
+    valid_logg2 = [mtrack.interp_value([M2, ee, FEH], ['logg'])[0] for ee in valid_eep2]
+
+    closest_eep1 = valid_eep1[np.argmin(abs(np.array(valid_logg1) - LOGG1))]
+    closest_eep2 = valid_eep2[np.argmin(abs(np.array(valid_logg2) - LOGG2))]
+
+    closest_state1 = np.argmin(abs(primary_eeps - closest_eep1))
+    closest_state2 = np.argmin(abs(primary_eeps - closest_eep2))
+
+    print(f'M1 appears to be in the {eep_dict[closest_state1]} state')
+    print(f'M2 appears to be in the {eep_dict[closest_state2]} state')
 
 
 def fold(x, period, t0):
