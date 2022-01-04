@@ -18,6 +18,7 @@ warnings.filterwarnings('ignore',
     message="WARNING (theano.tensor.opt): Cannot construct a scalar test value from a test value with no size:"
 )
 import os
+import shutil
 import pickle as pk
 import pymc3 as pm
 import pymc3_ext as pmx
