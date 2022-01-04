@@ -90,7 +90,7 @@ def load_construct_run_pymc3_model(
         os.mkdir(theano_root)
 
 
-    theano_dir = theano_root + f"mcmc_{TIC_TARGET}_c{chains}_nt{Ntune}_nd{Ndraw}/"
+    theano_path = theano_root + f"mcmc_{TIC_TARGET}_c{chains}_nt{Ntune}_nd{Ndraw}/"
     if os.path.exists(theano_path):
         shutil.rmtree(theano_path)
     os.mkdir(theano_path)
