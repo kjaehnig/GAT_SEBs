@@ -87,6 +87,8 @@ def load_construct_run_pymc3_model(
 
     theano_root = DD + f"/mcmc_chains/"
 
+    print(f'theano_root_dir = {theano_root}')
+
     if not os.path.exists(theano_root):
         os.mkdir(theano_root)
 
