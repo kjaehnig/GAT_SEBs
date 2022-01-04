@@ -24,7 +24,13 @@ import pymc3_ext as pmx
 import aesara_theano_fallback.tensor as tt
 from celerite2.theano import terms, GaussianProcess
 from pymc3.util import get_default_varnames, get_untransformed_name, is_transformed_name
+
 import theano
+theano.config.optimizer = 'None'
+theano.config.mode = 'FAST_COMPILE'
+theano.config.reoptimize_unpickled_function = False 
+theano.config.cxx = ""
+
 import exoplanet as xo
 
 import arviz as az
@@ -75,6 +81,20 @@ def load_construct_run_pymc3_model(
                                     chains=4, 
                                     sparse_factor=5, 
                                     nsig=5):
+
+    theano_root = DD + f"/mcmc_chains/"
+
+    print(f'theano_root_dir = {theano_root}')
+
+    if not os.path.exists(theano_root):
+        os.mkdir(theano_root)
+
+
+    theano_dir = theano_root + f"mcmc_{TIC_TARGET}_c{chains}_nt{Ntune}_nd{Ndraw}/"
+    if os.path.exists(theano_path):
+        shutil.rmtree(theano_path)
+    os.mkdir(theano_path)
+    os.environ["THEANO_FLAGS"] = f"base_compiledir={theano_path}"
 
     mf = mult_factor
     print(f"running with multiplicative factor of {int(mult_factor)}x")
