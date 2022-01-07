@@ -227,12 +227,12 @@ def load_construct_run_pymc3_model(
             sigma_gp = pm.InverseGamma(
                 "sigma_gp",
                 testval= lk_sigma,
-                **pmx.estimate_inverse_gamma_parameters(0.1,15.0),
+                **pmx.estimate_inverse_gamma_parameters(0.1,10.0),
             )
             rho_gp = pm.InverseGamma(
                 "rho_gp",
-                testval= 2.0 * lit_period,
-                **pmx.estimate_inverse_gamma_parameters(0.1,15.0)
+                testval= 3.0 * lit_period,
+                **pmx.estimate_inverse_gamma_parameters(0.1,10.0)
             )
     #         sigma_lc = np.mean(yerr)
     #         sigma_gp = lk_sigma
