@@ -320,7 +320,31 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None):
             'logk':[np.mean(log_k), np.std(log_k)], 
             'mvPrior':mvPrior
             }
-            
+          
+
+
+def compute_value_in_post(model, idata, target, size=None):
+    # Get the names of the untransformed variables
+    vars = get_default_varnames(model.unobserved_RVs, True)
+    names = list(sorted(set([
+        get_untransformed_name(v.name)
+        if is_transformed_name(v.name)
+        else v.name
+        for v in vars
+    ])))
+
+    # Compile a function to compute the target
+    func = theano.function([model[n] for n in names], target, on_unused_input="ignore")
+
+    # Call this function for a bunch of values
+    flat_samps = idata.posterior.stack(sample=("chain", "draw"))
+    if size is None:
+        indices = np.arange(len(flat_samps.sample))
+    else:
+        indices = np.random.randint(len(flat_samps.sample), size=size)
+
+    return [func(*(flat_samps[n].values[..., i] for n in names)) for i in indices]
+
 
 
 def print_out_stellar_type(M,R):
