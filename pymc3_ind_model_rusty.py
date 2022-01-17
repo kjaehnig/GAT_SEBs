@@ -135,7 +135,7 @@ def load_construct_run_pymc3_model(
 
 
     trv = np.linspace(x_rv.min(), x_rv.max(), 5000)
-    tlc = np.linspace(x.min(), x.max(), 5000)
+    tlc = np.linspace(x.min(), x.max(), np.median(np.diff(x)))
 
     # rvK = xo.estimate_semi_amplitude(bls_period, x_rv, y_rv*u.km/u.s, yerr_rv*u.km/u.s, t0s=bls_t0)[0]
     # print(rvK)
@@ -591,7 +591,7 @@ def load_construct_run_pymc3_model(
     if 'pymc3_models' not in os.listdir(DD):
         os.mkdir(DD+'pymc3_models')
     pymc3_DD = DD + 'pymc3_models'
-    file = open(f"{pymc3_DD}/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_{SUFFIX}.pickle",'wb')
+    file = open(f"{pymc3_DD}/{TIC_TARGET}_sf{sparse_factor}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_{SUFFIX}.pickle",'wb')
     pk.dump({
             'trace':trace,
              'mask':mask,
