@@ -135,7 +135,7 @@ def load_construct_run_pymc3_model(
 
 
     trv = np.linspace(x_rv.min(), x_rv.max(), 5000)
-    tlc = np.linspace(x.min(), x.max(), np.median(np.diff(x)))
+    tlc = np.arange(x.min(), x.max(), np.median(np.diff(x)))
 
     # rvK = xo.estimate_semi_amplitude(bls_period, x_rv, y_rv*u.km/u.s, yerr_rv*u.km/u.s, t0s=bls_t0)[0]
     # print(rvK)
