@@ -997,3 +997,140 @@ def get_all_transit_params(TIC_ID, jk_row):
     res['freq_factor'] = freq_f
     
     return res
+
+
+def make_folded_lightcurve_from_blsres(TICID):
+    
+    file = open(f"/Users/kjaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_highres_bls_params.pickle",'rb')
+    blsres = pk.load(file)
+    file.close()
+
+    file = open(f"/Users/kjaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_lightcurve_data.pickle","rb")
+    res = pk.load(file)
+    file.close()
+    
+        #     print(calibverr.info)
+    # Grab cross-match IDs
+    sysapodat = allvis17[allvis17['APOGEE_ID'] == res['joker_param']['APOGEE_ID']]
+
+    ## joining calib RV_ERRs with the RVs
+    sysapodat = astab.join(sysapodat, calibverr['VISIT_ID','CALIB_VERR'], keys=('VISIT_ID','VISIT_ID'))
+
+    
+    
+    lks = res['lk_coll'].stitch(corrector_func=lambda x: x.remove_nans().normalize())
+#     print([len(ii) for ii in blsres['period']])
+#     print('sectors: ',res['lk_coll'].sector,'\n'\
+#           'bls_per(s): ',blsres['period'],'\n'\
+#           'MAP_P: ',res['joker_param']['MAP_P'])
+
+    map_period = res['joker_param']['MAP_P']
+    map_t0_bmjd = res['joker_param']['MAP_t0_bmjd']
+    map_t0 = astropy.time.Time(map_t0_bmjd, format='mjd', scale='tcb')
+
+    bls_period = blsres['period_at_max_power'].value
+    bls_t0 = blsres['t0_at_max_power'].value
+        
+    rv_time = astropy.time.Time(sysapodat['MJD'], format='mjd', scale='tcb')
+
+    abs_time_vmin = 0.0
+    abs_time_vmax = max(lks.time.btjd.max()-lks.time.btjd.min(), rv_time.btjd.max()-rv_time.btjd.min())
+#     print(abs_time_vmin, abs_time_vmax)
+    
+    fig,ax = plt.subplots(figsize=(16,20), nrows=4, ncols=2)
+#     ax[-1,-1].remove()
+    
+    fig.text(0.5,0.885,f'un-folded observations (TESS --- APOGEE) [{TICID}]',
+             fontdict={'horizontalalignment':'center','fontweight':'bold','fontsize':14})
+    lc_unfolded = ax[0,0].scatter(lks.time.value, lks.flux.value,marker='o', s=0.5,
+                              c=lks.time.value - lks.time.min().value, 
+                                  vmin=abs_time_vmin, vmax=abs_time_vmax, cmap=cm.inferno)
+
+    rv_unfolded = ax[0,1].plot(rv_time.btjd, 
+                               sysapodat['VHELIO'] - res['joker_param']['MAP_v0'],
+                               marker='o',ls='None',mec='black')
+    
+    fig.text(0.5,0.69,'bls folded observations (TESS --- APOGEE)',
+             fontdict={'horizontalalignment':'center','fontweight':'bold','fontsize':14})
+    
+    Nbins = 100  # int(len(lks.time.value) / 1000.)
+    bins = np.linspace(-0.5*bls_period, 0.5*bls_period, Nbins)
+    x_ = fold(lks.time.value, bls_period, bls_t0)
+    y_ = lks.flux.value
+    num, _ = np.histogram(x_, bins, weights=y_)
+    denom, _ = np.histogram(x_, bins)
+    num[denom > 0] /= denom[denom > 0]
+    num[denom == 0] = np.nan
+#     def running_mean(x, N):
+#         cumsum = np.cumsum(np.insert(x, 0, 0)) 
+#         return (cumsum[N:] - cumsum[:-N]) / float(N)
+    
+#     folded_lcx = fold(lks.time.value, bls_period, bls_t0)
+#     inds = np.argsort(folded_lcx)
+    
+#     folded_rmy = running_mean(lks.flux.value[inds],Nbins)
+    
+#     rmx = np.linspace(folded_lcx.min(), folded_lcx.max(), len(folded_rmy))
+#     folded_rmx = fold(rmx, bls_period, bls_t0)
+    
+    lc_folded_bls = ax[1,0].scatter(fold(lks.time.value, bls_period, bls_t0), 
+               lks.flux.value, marker='o',s=0.5,
+               c=lks.time.value - lks.time.min().value,
+               cmap=cm.inferno, vmin=abs_time_vmin, vmax=abs_time_vmax#fold(lks.time.value, bls_period, bls_t0)
+                )
+    ax[1,0].plot(0.5 * (bins[1:] + bins[:-1]), num, color='white', lw=6,zorder=10)
+    ax[1,0].plot(0.5 * (bins[1:] + bins[:-1]), num, color='cyan', lw=3,zorder=11)
+#     ax[1,0].set_ylim(lks.flux.min(), lks.flux.max())
+    
+    rv_folded_bls = ax[1,1].scatter(fold(sysapodat['MJD'].value, bls_period, blsres['t0_at_max_power'].mjd),
+                                    sysapodat['VHELIO']-res['joker_param']['MAP_v0'],
+                                    marker='o',c=sysapodat['MJD'].value-min(sysapodat['MJD']),
+                                    cmap=cm.inferno, vmin=abs_time_vmin, vmax=abs_time_vmax,
+                                    ec='black')
+    ax[1,1].axvline(0.0,ls='--')
+    ax[1,1].axhline(0.0,ls='--')
+
+    fig.text(0.5,0.49,'MAP folded observations (TESS --- APOGEE)',
+             fontdict={'horizontalalignment':'center','fontweight':'bold','fontsize':14})
+    lc_folded_map = ax[2,0].scatter(fold(lks.time.value, map_period, map_t0.btjd), 
+               lks.flux.value, marker='o',s=0.5,
+               c=lks.time.value - lks.time.min().value,
+               cmap=cm.inferno, vmin=abs_time_vmin, vmax=abs_time_vmax#fold(lks.time.value, bls_period, bls_t0)
+                )
+    
+    rv_folded_map = ax[2,1].scatter(fold(sysapodat['MJD'].value, map_period, map_t0.mjd),
+                                    sysapodat['VHELIO']-res['joker_param']['MAP_v0'],
+                                    marker='o',c=sysapodat['MJD'].value-min(sysapodat['MJD']),
+                                    cmap=cm.inferno, vmin=abs_time_vmin, vmax=abs_time_vmax,
+                                    ec='black')
+    fig.colorbar(rv_folded_map, ax=ax[1:3,1],shrink=1.0, pad=0.01, fraction=0.05,label='days')
+    ax[2,1].axvline(0.0,ls='--')
+    ax[2,1].axhline(0.0,ls='--')
+    
+    ax[3,0].set_title("GAIA CMD Target Location", fontsize=14, fontweight='bold')
+    allstar_Gmag = allstar17['phot_g_mean_mag'] - (5.*np.log10(1000./allstar17['parallax']) - 5.)
+    unimodal_Gmag = hq_jk_allstar_tess_edr3['phot_g_mean_mag'] - (5.*np.log10(1000./hq_jk_allstar_tess_edr3['parallax']) - 5)
+    tess_obs_Gmag = hq_jk_allstar_tess_edr3_w_tess_obs['phot_g_mean_mag'] - (
+                        5.*np.log10(1000./hq_jk_allstar_tess_edr3_w_tess_obs['parallax']) - 5)
+    target_Gmag = res['joker_param']['phot_g_mean_mag'] - (5.*np.log10(1000./res['joker_param']['parallax']) - 5.)
+    
+    ax[3,0].plot(allstar17['bp_rp'], allstar_Gmag,
+                 marker=',',color='gray', ls='None',label='allstar')
+    ax[3,0].plot(hq_jk_allstar_tess_edr3['bp_rp'],unimodal_Gmag,
+                 marker='.',color='tab:red',ls='None', label='unimodal')
+    ax[3,0].plot(hq_jk_allstar_tess_edr3_w_tess_obs['bp_rp'], tess_obs_Gmag,
+                 marker='^',ms=8,color='black',ls='None',mfc='None',label='unimodal w TESS')
+    ax[3,0].plot(res['joker_param']['bp_rp'],target_Gmag,
+                 marker='^',ms=8,color='tab:blue',lw=2,ls='None',label=TICID)
+    ax[3,0].set_ylim(15,-15)
+    ax[3,0].set_xlim(-1,7)
+    ax[3,0].legend(fontsize=10)
+    
+    joker_param = hq_jk_allstar_tess_edr3.to_pandas()[hq_jk_allstar_tess_edr3['APOGEE_ID'] == res['joker_param']['APOGEE_ID']]
+#     print(joker_param['phot_g_mean_mag'])
+    param_str = (f"Gaia G: {joker_param['phot_g_mean_mag'].squeeze()}\nTeff: {int(joker_param['TEFF'].squeeze())}\nLogG: {joker_param['LOGG'].squeeze()}\nM_H: {joker_param['M_H'].squeeze()}\necc: {joker_param['MAP_e'].squeeze()}\nMAP_P: {joker_param['MAP_P'].squeeze()}\nBLS_P: {bls_period}")
+    ax[3,1].scatter(0,0,ec='None',fc='None',label=param_str)
+    ax[3,1].legend(loc='center',scatterpoints=0, fontsize=18, frameon=False)
+    
+#     fig.colorbar(lc_folded_)
+#     ax.set_xlim(-1,1)
