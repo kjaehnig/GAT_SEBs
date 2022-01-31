@@ -236,18 +236,18 @@ def load_construct_run_pymc3_model(
             sigma_gp = pm.InverseGamma(
                 "sigma_gp",
                 testval= lk_sigma,
-                **pmx.estimate_inverse_gamma_parameters(0.1,10.0),
+                **pmx.estimate_inverse_gamma_parameters(0.1,15.0),
             )
             rho_gp = pm.InverseGamma(
                 "rho_gp",
                 testval= 3.0 * lit_period,
-                **pmx.estimate_inverse_gamma_parameters(0.1,10.0)
+                **pmx.estimate_inverse_gamma_parameters(0.1,15.0)
             )
     #         sigma_lc = np.mean(yerr)
     #         sigma_gp = lk_sigma
     #         rho_gp = 0.25*lit_period
             print(sigma_lc, sigma_gp, rho_gp)
-            kernel_lc = terms.SHOTerm(sigma=sigma_gp, rho=rho_gp, Q=1.0 / 3.)
+            kernel_lc = terms.SHOTerm(sigma=sigma_gp, rho=rho_gp, Q=1.0 / 4.)
 
     #         # Noise model for the radial velocities
     #         sigma_rv = pm.InverseGamma(
