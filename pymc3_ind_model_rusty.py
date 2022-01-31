@@ -26,11 +26,16 @@ import aesara_theano_fallback.tensor as tt
 from celerite2.theano import terms, GaussianProcess
 from pymc3.util import get_default_varnames, get_untransformed_name, is_transformed_name
 
-import theano
-theano.config.optimizer = 'None'
-theano.config.mode = 'FAST_COMPILE'
-theano.config.reoptimize_unpickled_function = False 
-theano.config.cxx = ""
+
+import sys
+what_machine_am_i_on = sys.platform
+
+if what_machine_am_i_on=='linux' or what_machine_am_i_on=='linux2':
+    import theano
+    theano.config.optimizer = 'None'
+    theano.config.mode = 'FAST_COMPILE'
+    theano.config.reoptimize_unpickled_function = False 
+    theano.config.cxx = ""
 
 import exoplanet as xo
 
@@ -73,6 +78,10 @@ docs_setup()
 
 #DD = "/Users/kjaehnig/CCA_work/GAT/"
 DD = hf.load_system_specific_directory()
+
+
+# if DD == "/mn/home/kjaehnig/": 
+
 
 def load_construct_run_pymc3_model(
                                     TIC_TARGET=20215452, 
