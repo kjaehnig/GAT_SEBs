@@ -1134,3 +1134,31 @@ def make_folded_lightcurve_from_blsres(TICID):
     
 #     fig.colorbar(lc_folded_)
 #     ax.set_xlim(-1,1)
+
+
+def folded_bin_histogram(Nbins=100, lks=None, bls_period=None, bls_t0=None):
+    Nbins = Nbins  # int(len(lks.time.value) / 1000.)
+    bins = np.linspace(-0.5*bls_period, 0.5*bls_period, Nbins)
+    x_ = fold(lks.time.value, bls_period, bls_t0)
+    y_ = lks.flux.value
+    num, _ = np.histogram(x_, bins, weights=y_)
+    denom, _ = np.histogram(x_, bins)
+    num[denom > 0] /= denom[denom > 0]
+    num[denom == 0] = np.nan
+#     def running_mean(x, N):
+#         cumsum = np.cumsum(np.insert(x, 0, 0)) 
+#         return (cumsum[N:] - cumsum[:-N]) / float(N)
+    
+#     folded_lcx = fold(lks.time.value, bls_period, bls_t0)
+#     inds = np.argsort(folded_lcx)
+    
+#     folded_rmy = running_mean(lks.flux.value[inds],Nbins)
+    
+#     rmx = np.linspace(folded_lcx.min(), folded_lcx.max(), len(folded_rmy))
+#     folded_rmx = fold(rmx, bls_period, bls_t0)
+    
+
+    return (0.5 * (bins[1:] + bins[:-1]),
+            num)
+
+

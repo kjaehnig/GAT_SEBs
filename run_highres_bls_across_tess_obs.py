@@ -15,6 +15,7 @@ from astropy.io import fits
 import helper_functions as hf
 import pickle as pk
 import os
+from matplotlib import pyplot as plt
 
 
 print(astropy.__version__)
@@ -48,6 +49,10 @@ def run_highres_bls_across_tess_obs(index=0, ngrid=100000):
         os.mkdir(res_dir)
 
     
+    img_dir = DD +'highres_bls_plots/'
+    if not os.path.exists(img_dir):
+        os.mkdir(img_dir)
+
     infile = open(f"{DD}joker_TESS_lightcurve_files/TIC_{tic}_lightcurve_data.pickle",'rb')
     res = pk.load(infile)
     infile.close()
@@ -111,8 +116,21 @@ def run_highres_bls_across_tess_obs(index=0, ngrid=100000):
     res['duration_at_max_power'] = cusBLSdur
     res['max_power'] = maxpow
         
+    fig,ax = plt.subplots(figsize=(10,7))
+    lc_folded_bls = ax.scatter(hf.fold(all_lk.time.value, cusBLSperiod.value, cusBLSt0.value), 
+               all_lk.flux.value, marker='o',s=0.5,
+               c=all_lk.time.value - all_lk.time.min().value,
+               cmap='inferno')
 
-    outfile = open(f"{res_dir}/TIC_{tic}_highres_bls_params.pickle",'wb')
+    hbins, num = hf.folded_bin_histogram(lks=all_lk, 
+                                        bls_period=cusBLSperiod.value, 
+                                        bls_t0=cusBLSt0.value)
+    ax.plot(hbins, num, color='white', lw=6,zorder=10)
+    ax.plot(hbins, num, color='cyan', lw=3,zorder=11)
+    plt.savefig(f"{img_dir}TIC_{tic}_highres_folded_phase_curve.png",dpi=150)
+    plt.close(fig)
+
+    outfile = open(f"{res_dir}TIC_{tic}_highres_bls_params.pickle",'wb')
     pk.dump(res, outfile)
     outfile.close()
 #     print("Finished.")
