@@ -83,7 +83,7 @@ def load_system_specific_directory():
 
     if what_machine_am_i_on == 'darwin':
         print("running on macOS")
-        return "/Users/kjaehnig/CCA_work/GAT/"
+        return "/Users/karljaehnig/CCA_work/GAT/"
     if what_machine_am_i_on == 'linux' or what_machine_am_i_on == 'linux2':
         print("running on linux")
         return "/mnt/home/kjaehnig/"
@@ -136,16 +136,16 @@ def load_precompiled_pymc3_model_data(DD=None, TIC_TARGET=None, sparse_factor=5)
 
 
 def get_system_data_for_pymc3_model(TICID):
-    allvis17 = astab.Table.read("/Users/kjaehnig/CCA_work/GAT/dr17_joker/allVisit-dr17-synspec.fits",hdu=1, format='fits')
-    allstar17 = astab.Table.read("/Users/kjaehnig/CCA_work/GAT/dr17_joker/allStar-dr17-synspec-gaiaedr3-xm.fits")
+    allvis17 = astab.Table.read("/Users/karljaehnig/CCA_work/GAT/dr17_joker/allVisit-dr17-synspec.fits",hdu=1, format='fits')
+    allstar17 = astab.Table.read("/Users/karljaehnig/CCA_work/GAT/dr17_joker/allStar-dr17-synspec-gaiaedr3-xm.fits")
     allstar17 = allstar17[(allstar17['bp_rp'] < 10) & (allstar17['phot_g_mean_mag'] < 25)]
     calibverr = astab.Table.read(DD+'dr17_joker/allVisit-dr17-synspec-min3-calibverr.fits', format='fits', hdu=1)
 
-    file = open(f"/Users/kjaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_highres_bls_params.pickle",'rb')
+    file = open(f"/Users/karljaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_highres_bls_params.pickle",'rb')
     blsres = pk.load(file)
     file.close()
 
-    file = open(f"/Users/kjaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_lightcurve_data.pickle","rb")
+    file = open(f"/Users/karljaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_lightcurve_data.pickle","rb")
     res = pk.load(file)
     file.close()
     
@@ -710,9 +710,9 @@ def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask,
     
     # fig, axes = plt.subplots(nrows=3)
     gsfig = GridSpec(nrows=140,ncols=100)
-    fig = plt.figure(figsize=(12,8), constrained_layout=False)
+    fig = plt.figure(figsize=(12,18), constrained_layout=False)
 
-    fig, ax4 = plt.subplots(figsize=(12,18))
+    # fig, ax4 = plt.subplots(figsize=(12,18))
 
     ax1 = fig.add_subplot(gsfig[:30,:])
     ax2 = fig.add_subplot(gsfig[30:60,:])
@@ -795,7 +795,7 @@ def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask,
               )
     filename = filename + '.png'
     plt.savefig(filename, bbox_inches='tight', dpi=150)
-    plt.close()
+    plt.close(fig)
     
     if RETURN_FILENAME:
         return filename

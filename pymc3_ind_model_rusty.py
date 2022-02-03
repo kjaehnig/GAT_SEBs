@@ -30,11 +30,13 @@ from pymc3.util import get_default_varnames, get_untransformed_name, is_transfor
 import sys
 what_machine_am_i_on = sys.platform
 
+
+import theano
+theano.config.reoptimize_unpickled_function = False 
+
 if what_machine_am_i_on=='linux' or what_machine_am_i_on=='linux2':
-    import theano
     theano.config.optimizer = 'None'
     theano.config.mode = 'FAST_COMPILE'
-    theano.config.reoptimize_unpickled_function = False 
     theano.config.cxx = ""
 
 import exoplanet as xo
@@ -90,7 +92,8 @@ def load_construct_run_pymc3_model(
                                     Ndraw=500, 
                                     chains=4, 
                                     sparse_factor=5, 
-                                    nsig=5):
+                                    nsig=5,
+                                    ):
 
     theano_root = DD + f"mcmc_chains/"
 
@@ -132,6 +135,7 @@ def load_construct_run_pymc3_model(
     Ntrans, ecosw_tv = pymc3_model_dict['Ntrans'], pymc3_model_dict['ecosw_tv']
     print('ecosw_tv: ', ecosw_tv)
     if abs(ecosw_tv) > 0.01:
+        print(f"calculated ecosw_tv too high. Resetting to {np.sign(ecosw_tv) * 0.01}")
         ecosw_tv = np.sign(ecosw_tv) * 0.01
 
     SUFFIX = f'individual_priors_{int(mf)}x_isochrones'
@@ -186,8 +190,8 @@ def load_construct_run_pymc3_model(
 
     #         log_period = pm.Normal("log_period", mu=np.log(lit_period), sigma=5.0)
     #         period = pm.Deterministic("period", tt.exp(log_period))
-            t0 = pm.Normal("t0", mu=lit_t0, sigma=1.0)
-            tn = pm.Normal("tn", mu=lit_tn, sigma=1.0)
+            t0 = pm.Normal("t0", mu=lit_t0, sigma=3.0)
+            tn = pm.Normal("tn", mu=lit_tn, sigma=3.0)
             period = pm.Deterministic("period", (tn - t0) / Ntrans)
             # Parameters describing the eccentricity: ecs = [e * cos(w), e * sin(w)]
     #         ecosw_tv=0.01
@@ -223,16 +227,11 @@ def load_construct_run_pymc3_model(
             
             
             # Noise model for the light curve
-            
-            
-            
             sigma_lc = pm.InverseGamma(
                 "sigma_lc",
                 testval= np.mean(yerr),
                 **pmx.estimate_inverse_gamma_parameters(0.1,5.0)
             )
-            
-            
             sigma_gp = pm.InverseGamma(
                 "sigma_gp",
                 testval= lk_sigma,
@@ -470,7 +469,7 @@ def load_construct_run_pymc3_model(
 
 
 
-
+        plt.close()
         return model, map_soln, extras, start, opti_logp, filename_list
 
 
@@ -488,7 +487,6 @@ def load_construct_run_pymc3_model(
     for filename in filename_list:
         images.append(imageio.imread(filename))
     imageio.mimsave(DD+f"apotess_systems/{TIC_TARGET.replace(' ','_')}_{SUFFIX}__diagnostic_movie_test.gif".replace('//','/'), images, fps=0.75)
-
     print("#" * 50)
     print("#"*19 +"  FINISHED  " + "#"*19)
     print("#"*50)
@@ -688,7 +686,7 @@ def load_construct_run_pymc3_model(
     axes[1].set_ylabel("flux [ppt]")
 
     plt.savefig(fig_dest + f"{TIC_TARGET.replace(' ','_').replace('-','_')}_{SUFFIX}_rvphase_plot.png",dpi=150,bbox_inches='tight')
-    plt.close()
+    plt.close('all')
 
     ##sys.stdout.close()
 
