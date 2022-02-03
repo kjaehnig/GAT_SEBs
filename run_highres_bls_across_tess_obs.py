@@ -45,13 +45,13 @@ def run_highres_bls_across_tess_obs(index=0, ngrid=100000):
     tic = tic_systems_of_interest[index]
 
     res_dir = DD + "highres_bls/"
-    if not os.path.exists(res_dir):
-        os.mkdir(res_dir)
+    # if not os.path.exists(res_dir):
+        # os.mkdir(res_dir)
 
     
     img_dir = DD +'highres_bls_plots/'
-    if not os.path.exists(img_dir):
-        os.mkdir(img_dir)
+    # if not os.path.exists(img_dir):
+    #     os.mkdir(img_dir)
 
     infile = open(f"{DD}joker_TESS_lightcurve_files/TIC_{tic}_lightcurve_data.pickle",'rb')
     res = pk.load(infile)
