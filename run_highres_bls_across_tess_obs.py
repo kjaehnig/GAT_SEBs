@@ -60,7 +60,7 @@ def run_highres_bls_across_tess_obs(index=0, ngrid=100000):
     jk_row = res['joker_param']
 
     
-    dur_grid = np.exp(np.linspace(np.log(0.001),np.log(0.1),10))
+    dur_grid = np.exp(np.linspace(np.log(0.001),np.log(0.099),50))
     
 #     npts = 5000
 #     pmin = period_grid.min()
@@ -83,11 +83,14 @@ def run_highres_bls_across_tess_obs(index=0, ngrid=100000):
 
     cusBLS = astropy.timeseries.BoxLeastSquares(x, y, yerr)
 
-    max_period = 2.*jk_row['MAP_P']
-    min_period = 1.5 * max(dur_grid)
+
+    baseline = max(all_lk.time.value) - min(all_lk.time.value)
+
+    max_period = 0.5 * baseline#2.*jk_row['MAP_P']
+    min_period = 0.1 #1.5 * max(dur_grid)
     print(f"min per:{min_period}, max dur: {max(dur_grid)}")      #0.5 * jk_row['MAP_P']
     nf =   ngrid   #5 * 10**5
-    baseline = max(all_lk.time.value) - min(all_lk.time.value)
+    
     
     min_f = 1. / max_period
     max_f = 1. / min_period
@@ -116,20 +119,26 @@ def run_highres_bls_across_tess_obs(index=0, ngrid=100000):
     res['duration_at_max_power'] = cusBLSdur
     res['max_power'] = maxpow
 
-    fig,ax = plt.subplots(figsize=(10,7))
-    ax.set_title(f"TIC {tic}")
-    ax.set_xlabel("phase [days]")
-    ax.set_ylabel("flux [ppt]")
-    lc_folded_bls = ax.scatter(hf.fold(all_lk.time.value, cusBLSperiod.value, cusBLSt0.value), 
-               all_lk.flux.value, marker='o',s=0.5,
+
+
+    fig,ax = plt.subplots(figsize=(10,15), nrows=3, ncols=1)
+    ax[0].set_title(f"TIC {tic}")
+    ax[-1].set_xlabel("phase [days]")
+    [ii.set_ylabel("flux [ppt]") for ii in ax]
+
+    for ii, nper in enumerate([0.5, 1.0, 2.0]):
+        lc_folded_bls = ax[ii].scatter(
+               hf.fold(all_lk.time.value, nper*cusBLSperiod.value, cusBLSt0.value), 
+               all_lk.flux.value, marker='o',s=0.5,  
                c=all_lk.time.value - all_lk.time.min().value,
                cmap='inferno')
 
-    hbins, num = hf.folded_bin_histogram(lks=all_lk, 
-                                        bls_period=cusBLSperiod.value, 
+        hbins, num = hf.folded_bin_histogram(lks=all_lk, 
+                                        bls_period=nper*cusBLSperiod.value, 
                                         bls_t0=cusBLSt0.value)
-    ax.plot(hbins, num, color='white', lw=6,zorder=10)
-    ax.plot(hbins, num, color='cyan', lw=3,zorder=11)
+        ax[ii].plot(hbins, num, color='white', lw=6,zorder=10)
+        ax[ii].plot(hbins, num, color='cyan', lw=3,zorder=11)
+
     plt.savefig(f"{img_dir}TIC_{tic}_highres_folded_phase_curve.png",dpi=150)
     plt.close(fig)
 
