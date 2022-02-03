@@ -116,7 +116,7 @@ def run_highres_bls_across_tess_obs(index=0, ngrid=100000):
     res['duration_at_max_power'] = cusBLSdur
     res['max_power'] = maxpow
 
-    fig,ax = plt.subplots(figsize=(10,7))\
+    fig,ax = plt.subplots(figsize=(10,7))
     ax.set_title(f"TIC {tic}")
     ax.set_xlabel("phase [days]")
     ax.set_ylabel("flux [ppt]")
