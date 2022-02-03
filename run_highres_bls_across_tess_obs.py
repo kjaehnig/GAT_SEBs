@@ -115,8 +115,11 @@ def run_highres_bls_across_tess_obs(index=0, ngrid=100000):
     res['depth_at_max_power'] = cusBLSdepth
     res['duration_at_max_power'] = cusBLSdur
     res['max_power'] = maxpow
-        
-    fig,ax = plt.subplots(figsize=(10,7))
+
+    fig,ax = plt.subplots(figsize=(10,7))\
+    ax.set_title(f"TIC {tic}")
+    ax.set_xlabel("phase [days]")
+    ax.set_ylabel("flux [ppt]")
     lc_folded_bls = ax.scatter(hf.fold(all_lk.time.value, cusBLSperiod.value, cusBLSt0.value), 
                all_lk.flux.value, marker='o',s=0.5,
                c=all_lk.time.value - all_lk.time.min().value,
