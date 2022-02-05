@@ -44,7 +44,7 @@ def run_highres_bls_across_tess_obs(index=0, ngrid=100000):
 
     tic = tic_systems_of_interest[index]
 
-    res_dir = DD + "highres_bls/"
+    res_dir = DD + "ceph/highres_bls/"
     # if not os.path.exists(res_dir):
         # os.mkdir(res_dir)
 
@@ -68,7 +68,7 @@ def run_highres_bls_across_tess_obs(index=0, ngrid=100000):
 #     mindur = dur_grid.min()
 
     all_lk = res['lk_coll'].stitch(corrector_func=lambda x: x.remove_nans().normalize())
-    
+    # all_lk = all_lk.remove_outliers(sigma_lower=np.inf, sigma_upper=3)
         
 #     print(f"Running BLS.")
 
