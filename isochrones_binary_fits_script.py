@@ -10,7 +10,7 @@ from optparse import OptionParser
 
 DD = hf.load_system_specific_directory()
 
-hq_joker_edr3_apogee_tess_df = astab.Table.read(DD+"dr17_joker/unimodal_joker_sample_joined_w_tess_edr3_REDUX.fits").to_pandas()
+hq_joker_edr3_apogee_tess_df = astab.Table.read(DD+"unimodal_joker_sample_joined_w_tess_edr3_REDUX.fits").to_pandas()
 
 ### PILFERED AND MODIFIED FROM MARINA KOUNKEL'S GITHUB REPOSITORY FOR THE AURIGA NEURAL NET
 print("starting...")
