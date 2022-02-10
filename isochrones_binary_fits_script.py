@@ -223,7 +223,7 @@ def main(index=0,
     binmod.derived_samples['logq'] = np.log(ms / mp)
     binmod.derived_samples['logs'] = np.log(mbols / mbolp)
 
-    binmod.save_hdf(f"/Users/kjaehnig/CCA_work/GAT/pymultinest_fits/tic_{ticsystem}_binary_model_obj.hdf",overwrite=True)
+    binmod.save_hdf(f"/mnt/home/kjaehnig/ceph/pymultinest_fits/tic_{ticsystem}_binary_model_obj.hdf",overwrite=True)
     
     fig = corner(az.from_dict(binmod.derived_samples[['logMp','logRp','logk','logq','logs']].to_dict('list')))
     fig.axes[0].set_title(TIC_TARGET) 
