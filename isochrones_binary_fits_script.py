@@ -5,8 +5,12 @@ import numpy as np
 from matplotlib import pyplot as plt
 from corner import corner
 import arviz as az
+import helper_functions as hf
+from optparse import OptionParser
 
-hq_joker_edr3_apogee_tess_df = astab.Table.read("/Users/kjaehnig/CCA_work/GAT/dr17_joker/unimodal_joker_sample_joined_w_tess_edr3_REDUX.fits").to_pandas()
+DD = hf.load_system_specific_directory()
+
+hq_joker_edr3_apogee_tess_df = astab.Table.read(DD+"unimodal_joker_sample_joined_w_tess_edr3_REDUX.fits").to_pandas()
 
 ### PILFERED AND MODIFIED FROM MARINA KOUNKEL'S GITHUB REPOSITORY FOR THE AURIGA NEURAL NET
 print("starting...")
@@ -72,7 +76,7 @@ def initialize_multinest_binary_model(ticnum):
     mist = get_ichrone('mist', bands=['J','H','K','BP','RP','G'])
     
     binarymodel = BinaryStarModel(mist, **params, name=f'TIC_{ticnum}')
-    binarymodel.mnest_basename = '/Users/kjaehnig'+binarymodel.mnest_basename[1:]
+    binarymodel.mnest_basename = '/mnt/home/kjaehnig/ceph'+binarymodel.mnest_basename[1:]
     
     distance = 1000./params['parallax'][0]
 #     feh_bounds = (params['feh'][0]-3*params['feh'][1], params['feh'][0]+3*params['feh'][1])
@@ -141,8 +145,8 @@ def get_best_age_eep_mass_bounds(TICNUM):
     from tqdm import tqdm
     min_logg = interp_params['logg'][0] - 0.5
     max_logg = interp_params['logg'][0] + 0.5
-    min_teff = interp_params['Teff'][0] - 200
-    max_teff = interp_params['Teff'][0] + 200
+    min_teff = interp_params['Teff'][0] - 500
+    max_teff = interp_params['Teff'][0] + 500
     # print(tic_params['feh'])
 
     valid_ages, valid_eeps, valid_mass = [], [], []
@@ -164,7 +168,11 @@ def get_best_age_eep_mass_bounds(TICNUM):
 
 
 
-tic_systems_of_interest = [
+def main(index=0,
+        n_live_points=100):
+
+
+    tic_systems_of_interest = [
     28159019,
     99254945,
     126232983,
@@ -180,13 +188,8 @@ tic_systems_of_interest = [
     365204192
     ]
 
+    ticsystem = tic_systems_of_interest[index]
 
-
-
-
-
-
-for ticsystem in tic_systems_of_interest:
     binmod = initialize_multinest_binary_model(ticsystem)
 
     valid_ages,valid_eeps,valid_mass = get_best_age_eep_mass_bounds(ticsystem)
@@ -195,11 +198,72 @@ for ticsystem in tic_systems_of_interest:
                   mass=(max(0.1, min(valid_mass)), min(10, max(valid_mass)))
                  )
     print("Starting MultiNest")
-    binmod.fit(n_live_points=2000, overwrite=True)
+    binmod.fit(n_live_points=n_live_points, overwrite=True)
+
     fig = corner(az.from_dict(
         binmod.derived_samples[['mass_0','mass_1','Mbol_0','Mbol_1','radius_0','radius_1']].to_dict('list')),
         smooth=1)
     fig.axes[0].set_title(f'TIC-{ticsystem}')
-    plt.savefig(f"/Users/kjaehnig/CCA_work/GAT/figs/tic_{ticsystem}_multinest_corner.png",dpi=150,bbox_inches='tight')
-    plt.close()
+    plt.savefig(f"/mnt/home/kjaehnig/tic_{ticsystem}_multinest_corner.png",dpi=150,bbox_inches='tight')
+    plt.close(fig)
+
+
+    m0,m1,r0,r1,mbol0,mbol1 = binmod.derived_samples[['mass_0','mass_1','radius_0', 'radius_1','Mbol_0','Mbol_1']].values.T
+    num, denom = np.argmin([np.median(m0), np.median(m1)]), np.argmax([np.median(m0), np.median(m1)])
+
+    ms, mp = [m0,m1][num], [m0,m1][denom]
+
+    rs, rp = [r0,r1][num], [r0,r1][denom]
+    
+    mbols,mbolp = [mbol0,mbol1][num], [mbol0,mbol1][denom]
+    
+    binmod.derived_samples['logMp'] = np.log(mp)
+    binmod.derived_samples['logRp'] = np.log(rp)
+    binmod.derived_samples['logk'] = np.log(rs / rp)
+    binmod.derived_samples['logq'] = np.log(ms / mp)
+    binmod.derived_samples['logs'] = np.log(mbols / mbolp)
+
     binmod.save_hdf(f"/Users/kjaehnig/CCA_work/GAT/pymultinest_fits/tic_{ticsystem}_binary_model_obj.hdf",overwrite=True)
+    
+    fig = corner(az.from_dict(binmod.derived_samples[['logMp','logRp','logk','logq','logs']].to_dict('list')))
+    fig.axes[0].set_title(TIC_TARGET) 
+    plt.savefig(f"/mnt/home/kjaehnig/{TIC_TARGET}_pymc3_priors_corner.png",dpi=150, bbox_inches='tight')
+    plt.close(fig)
+
+
+result = OptionParser()
+
+result.add_option('--index', dest='index', default=0, type='int', 
+                help='indice of tic system array (defaults to 0)')
+result.add_option("--n_live_points", dest='n_live_points', default=100, type='int',
+                help='number of live points to run multinest (default: 100)')
+
+
+if __name__ == "__main__":
+    opt,arguments = result.parse_args()
+    main(**opt.__dict__)
+
+
+
+# for ticsystem in tic_systems_of_interest:
+#     binmod = initialize_multinest_binary_model(ticsystem)
+
+#     valid_ages,valid_eeps,valid_mass = get_best_age_eep_mass_bounds(ticsystem)
+#     binmod.set_bounds(eep=(min(valid_eeps), max(valid_eeps)),
+#                   age=(min(valid_ages), max(valid_ages)),
+#                   mass=(max(0.1, min(valid_mass)), min(10, max(valid_mass)))
+#                  )
+#     print("Starting MultiNest")
+#     binmod.fit(n_live_points=2000, overwrite=True)
+#     fig = corner(az.from_dict(
+#         binmod.derived_samples[['mass_0','mass_1','Mbol_0','Mbol_1','radius_0','radius_1']].to_dict('list')),
+#         smooth=1)
+#     fig.axes[0].set_title(f'TIC-{ticsystem}')
+#     plt.savefig(f"/Users/kjaehnig/CCA_work/GAT/figs/tic_{ticsystem}_multinest_corner.png",dpi=150,bbox_inches='tight')
+#     plt.close()
+#     binmod.save_hdf(f"/Users/kjaehnig/CCA_work/GAT/pymultinest_fits/tic_{ticsystem}_binary_model_obj.hdf",overwrite=True)
+
+
+
+
+

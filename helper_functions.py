@@ -34,7 +34,7 @@ import wquantiles
 #     """ Place a config_file.txt within the same repository as this python
 #     in order for this function to work and return the data directory
 #     """
-#     with open("/Users/kjaehnig/Repositories/GAT_SEBs/config_file.txt",'r') as f:
+#     with open("/Users/karljaehnig/Repositories/GAT_SEBs/config_file.txt",'r') as f:
 #         content = f.read()
 #     paths = content.split("\n")
 #     print(paths)
@@ -244,7 +244,7 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None):
     from isochrones import BinaryStarModel
 
     ID = TIC_TARGET.split(' ')[1]
-    mod = BinaryStarModel.load_hdf(f"/Users/kjaehnig/CCA_work/GAT/pymultinest_fits/tic_{ID}_binary_model_obj.hdf")
+    mod = BinaryStarModel.load_hdf(f"/Users/karljaehnig/CCA_work/GAT/pymultinest_fits/tic_{ID}_binary_model_obj.hdf")
     m0,m1,r0,r1,mbol0,mbol1 = mod.derived_samples[['mass_0','mass_1','radius_0', 'radius_1','Mbol_0','Mbol_1']].values.T
     
     num, denom = np.argmin([np.median(m0), np.median(m1)]), np.argmax([np.median(m0), np.median(m1)])
@@ -288,7 +288,7 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None):
     corner(az.from_dict(mod.derived_samples[['logMp','logRp','logk','logq','logs']][cmplt_mask].to_dict('list')), 
            plot_contours=False, color='red', fig=fig, zorder=10)
     if fig_dest is None:
-        plt.savefig(f"/Users/kjaehnig/CCA_work/GAT/figs/{TIC_TARGET}_isochrones_BinFitCorner_w_{int(nsig)}sigmaclip.png",dpi=150, bbox_inches='tight')
+        plt.savefig(f"/Users/karljaehnig/CCA_work/GAT/figs/{TIC_TARGET}_isochrones_BinFitCorner_w_{int(nsig)}sigmaclip.png",dpi=150, bbox_inches='tight')
     else:
         plt.savefig(f"{fig_dest}/{TIC_TARGET}_isochrones_BinFitCorner_w_{int(nsig)}sigmaclip.png", dpi=150,bbox_inches='tight')
     
@@ -371,7 +371,7 @@ def print_out_stellar_type(M,R):
 def write_a_story_for_system(TIC_TARGET='TIC 20215452', model_type='1x',
                     Ntune=1000, Ndraw=500, chains=4, return_dict=False):
 
-    file = open(f"/Users/kjaehnig/CCA_work/GAT/pymc3_models/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_individual_priors_{model_type}_isochrones.pickle",'rb')
+    file = open(f"/Users/karljaehnig/CCA_work/GAT/pymc3_models/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_individual_priors_{model_type}_isochrones.pickle",'rb')
     res_dict = pk.load(file)
     file.close()
 
@@ -482,8 +482,8 @@ def is_pos_def(A):
 def check_for_system_directory(TIC_TARGET, return_directories=False):
     import os
     
-    tess_pwd = "/Users/kjaehnig/CCA_work/GAT/apotess_systems/"
-    current_tess_files = os.listdir("/Users/kjaehnig/CCA_work/GAT/apotess_systems/")
+    tess_pwd = "/Users/karljaehnig/CCA_work/GAT/apotess_systems/"
+    current_tess_files = os.listdir("/Users/karljaehnig/CCA_work/GAT/apotess_systems/")
     
     tic_dirname = TIC_TARGET.replace(" ",'_')
     tic_dirname = tic_dirname.replace("-",'_')
@@ -558,7 +558,9 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, save_data
     
     rv_time = astropy.time.Time(sysapodat['JD'], format='jd', scale='tcb')
     # print(sysapodat['MJD'])
-    texp = get_texp_from_lightcurve(res)
+    # texp = get_texp_from_lightcurve(res)
+
+    texp = 0.001388888888888889  ### 2min cadence from SPOC
 
     x_rv = rv_time.btjd
     y_rv = sysapodat['VHELIO'] - res['joker_param']['MAP_v0']
@@ -622,7 +624,9 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, save_data
         transit_time=blsres['t0_at_max_power']
     )
 
-    no_transit_lks = model_lk_data[~transit_mask]
+
+    #no_transit_lks = model_lk_data[~transit_mask]
+    no_transit_lks = model_lk_data.remove_outliers(sigma=1)
     y_masked = 1000 * (no_transit_lks.flux.value / np.median(no_transit_lks.flux.value) - 1)
     lk_sigma = np.std(y_masked)
     print(lk_sigma)
@@ -803,11 +807,11 @@ def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask,
 
 def make_folded_lightcurve_from_blsres(TICID):
     
-    file = open(f"/Users/kjaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_highres_bls_params.pickle",'rb')
+    file = open(f"/Users/karljaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_highres_bls_params.pickle",'rb')
     blsres = pk.load(file)
     file.close()
 
-    file = open(f"/Users/kjaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_lightcurve_data.pickle","rb")
+    file = open(f"/Users/karljaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_lightcurve_data.pickle","rb")
     res = pk.load(file)
     file.close()
     
@@ -1001,11 +1005,11 @@ def get_all_transit_params(TIC_ID, jk_row):
 
 def make_folded_lightcurve_from_blsres(TICID):
     
-    file = open(f"/Users/kjaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_highres_bls_params.pickle",'rb')
+    file = open(f"/Users/karljaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_highres_bls_params.pickle",'rb')
     blsres = pk.load(file)
     file.close()
 
-    file = open(f"/Users/kjaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_lightcurve_data.pickle","rb")
+    file = open(f"/Users/karljaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_lightcurve_data.pickle","rb")
     res = pk.load(file)
     file.close()
     
