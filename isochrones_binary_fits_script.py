@@ -232,7 +232,7 @@ def main(index=0,
     
     fig = corner(az.from_dict(binmod.derived_samples[['logMp','logRp','logk','logq','logs']].to_dict('list')))
     fig.axes[0].set_title(ticsystem) 
-    plt.savefig(f"/mnt/home/kjaehnig/{ticsystem}_pymc3_priors_corner.png",dpi=150, bbox_inches='tight')
+    plt.savefig(f"/mnt/home/kjaehnig/tic_{ticsystem}_pymc3_priors_corner.png",dpi=150, bbox_inches='tight')
     plt.close(fig)
 
 
