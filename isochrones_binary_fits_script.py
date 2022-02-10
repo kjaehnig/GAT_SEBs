@@ -192,10 +192,10 @@ def main(index=0,
 
     binmod = initialize_multinest_binary_model(ticsystem)
 
-    from mpi4py import MPI 
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    print(f"The rank on this machine is {rank}")
+    # from mpi4py import MPI 
+    # comm = MPI.COMM_WORLD
+    # rank = comm.Get_rank()
+    # print(f"The rank on this machine is {rank}")
 
     valid_ages,valid_eeps,valid_mass = get_best_age_eep_mass_bounds(ticsystem)
     binmod.set_bounds(eep=(min(valid_eeps), max(valid_eeps)),
