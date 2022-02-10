@@ -7,6 +7,8 @@ from corner import corner
 import arviz as az
 import helper_functions as hf
 from optparse import OptionParser
+import itertools
+
 
 DD = hf.load_system_specific_directory()
 
