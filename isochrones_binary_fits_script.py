@@ -10,7 +10,7 @@ from optparse import OptionParser
 
 DD = hf.load_system_specific_directory()
 
-hq_joker_edr3_apogee_tess_df = astab.Table.read(DD+"unimodal_joker_sample_joined_w_tess_edr3_REDUX.fits").to_pandas()
+hq_joker_edr3_apogee_tess_df = astab.Table.read(DD+"dr17_joker/unimodal_joker_sample_joined_w_tess_edr3_REDUX.fits").to_pandas()
 
 ### PILFERED AND MODIFIED FROM MARINA KOUNKEL'S GITHUB REPOSITORY FOR THE AURIGA NEURAL NET
 print("starting...")
@@ -69,11 +69,44 @@ def generate_params_for_multinest(ticnum):
     return params
 
 
+def add_tess_mag_to_params_dict(params):
+    import ticgen
+
+    mag_dict = {'Jmag':params['J'][0],
+                'Hmag':params['H'][0],
+                'Ksmag':params['K'][0],
+                'Gmag':params['G'][0],
+               'integration':2}
+
+    mag_combos = list(itertools.combinations(list(mag_dict.keys())[:-1],2))
+
+    mag_list = []
+    for combo in mag_combos:
+        mag_dict_samp = {
+            combo[0]: mag_dict[combo[0]],
+            combo[1]: mag_dict[combo[1]],
+            'integration': 2.0
+        }
+        try:
+            mag, _ = ticgen.calc_star(mag_dict_samp)
+            mag_list.append(mag)
+        except:
+            continue
+
+    print(f"there are {len(mag_list)} different mag values")
+    print(np.std(mag_list))
+    params['TESS'] = (np.median(mag_list), 0.05)
+
+    return params
+
+
 def initialize_multinest_binary_model(ticnum):
     from isochrones.priors import GaussianPrior
     params = generate_params_for_multinest(ticnum)
     
-    mist = get_ichrone('mist', bands=['J','H','K','BP','RP','G'])
+    params = add_tess_mag_to_params_dict(params)
+
+    mist = get_ichrone('mist', bands=['J','H','K','BP','RP','G','TESS'])
     
     binarymodel = BinaryStarModel(mist, **params, name=f'TIC_{ticnum}')
     binarymodel.mnest_basename = '/mnt/home/kjaehnig/ceph'+binarymodel.mnest_basename[1:]
