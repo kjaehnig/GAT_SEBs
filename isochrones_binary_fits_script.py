@@ -176,7 +176,7 @@ def get_best_age_eep_mass_bounds(TICNUM):
     interp_params = generate_params_for_interp(TICNUM)
     from isochrones.mist import MISTEvolutionTrackGrid
     track_grid = MISTEvolutionTrackGrid()
-    eep_range = np.arange(1400) + 1
+    eep_range = np.arange(1,1400,0.25)
     from tqdm import tqdm
     min_logg = interp_params['logg'][0] - 0.5
     max_logg = interp_params['logg'][0] + 0.5
@@ -185,7 +185,7 @@ def get_best_age_eep_mass_bounds(TICNUM):
     # print(tic_params['feh'])
 
     valid_ages, valid_eeps, valid_mass = [], [], []
-    for masses in tqdm(np.linspace(0.1,50,1000), position=0, leave='None'):
+    for masses in tqdm(np.linspace(0.1,50,2000), position=0, leave='None'):
         for eep in eep_range:
             interp_vals = track_grid.interp([interp_params['feh'][0], masses, eep], ['age','Teff','logg'])[0]
             age, teff, logg = interp_vals[0], interp_vals[1], interp_vals[2]
