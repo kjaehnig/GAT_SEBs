@@ -226,8 +226,8 @@ def main(index=0,
     binmod.save_hdf(f"/mnt/home/kjaehnig/ceph/pymultinest_fits/tic_{ticsystem}_binary_model_obj.hdf",overwrite=True)
     
     fig = corner(az.from_dict(binmod.derived_samples[['logMp','logRp','logk','logq','logs']].to_dict('list')))
-    fig.axes[0].set_title(TIC_TARGET) 
-    plt.savefig(f"/mnt/home/kjaehnig/{TIC_TARGET}_pymc3_priors_corner.png",dpi=150, bbox_inches='tight')
+    fig.axes[0].set_title(ticsystem) 
+    plt.savefig(f"/mnt/home/kjaehnig/{ticsystem}_pymc3_priors_corner.png",dpi=150, bbox_inches='tight')
     plt.close(fig)
 
 
