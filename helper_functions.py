@@ -244,7 +244,7 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None):
     from isochrones import BinaryStarModel
 
     ID = TIC_TARGET.split(' ')[1]
-    mod = BinaryStarModel.load_hdf(f"/Users/karljaehnig/CCA_work/GAT/pymultinest_fits/tic_{ID}_binary_model_obj.hdf")
+    mod = BinaryStarModel.load_hdf(f"/Users/karljaehnig/CCA_work/GAT/pymultinest_fits_rusty/tic_{ID}_binary_model_obj.hdf")
     m0,m1,r0,r1,mbol0,mbol1 = mod.derived_samples[['mass_0','mass_1','radius_0', 'radius_1','Mbol_0','Mbol_1']].values.T
     
     num, denom = np.argmin([np.median(m0), np.median(m1)]), np.argmax([np.median(m0), np.median(m1)])
@@ -536,6 +536,22 @@ def check_for_system_directory_rusty_side(DD, TIC_TARGET, return_directories=Fal
 
 
 
+def run_with_sparse_data(x,y,yerr, sparse_factor=5, return_mask=False):
+    """ quick function to take arrays and randomly downsample to reduce array
+    size for computational gains. 
+    """
+    np.random.seed(68594)
+    m = np.random.rand(len(x)) < 1.0 / sparse_factor
+    x = x[m]
+    y = y[m]
+    yerr = yerr[m]
+    if return_mask:
+        return (x,y,yerr, m)
+    else:
+        return (x,y,yerr)
+
+
+
 def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, save_data_to_dict=False):
     # TIC_TARGET = 'TIC 20215452'
 
@@ -625,8 +641,8 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, save_data
     )
 
 
-    #no_transit_lks = model_lk_data[~transit_mask]
-    no_transit_lks = model_lk_data.remove_outliers(sigma=1)
+    no_transit_lks = model_lk_data[~transit_mask]
+    # no_transit_lks = model_lk_data.remove_outliers(sigma=1)
     y_masked = 1000 * (no_transit_lks.flux.value / np.median(no_transit_lks.flux.value) - 1)
     lk_sigma = np.std(y_masked)
     print(lk_sigma)
@@ -653,7 +669,9 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, save_data
         'lit_tn' : lit_tn,
         'ecosw_tv' : ecosw_tv,
         'isores' : isochrones_res_dict,
-        'sys_params' : res['joker_param']
+        'sys_params' : res['joker_param'],
+        'blsres':blsres,
+        'model_lk_data' :model_lk_data
     }
 
     if save_data_to_dict:

@@ -93,6 +93,7 @@ def load_construct_run_pymc3_model(
                                     chains=4, 
                                     sparse_factor=5, 
                                     nsig=5,
+                                    norun=0
                                     ):
 
     theano_root = DD + f"mcmc_chains/"
@@ -715,7 +716,8 @@ result.add_option("--sf", dest='sparse_factor', default=5, type='int',
                 help='how sparse to make the lightcurve data before running pymc3 (default: 5)')
 result.add_option("--nsig", dest='nsig', default=5, type='int',
                 help='number of sigma to consider in constructing isochrones BinMod distributions (default: 5)')
-
+result.add_option("--norun", dest='norun', default=0, type='int',
+                help='if 1 then perform MAP steps, sigmaclip, 2nd MAP steps, w/ no MCMC')
 
 if __name__ == "__main__":
     opt,arguments = result.parse_args()
