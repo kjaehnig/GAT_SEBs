@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import astropy
 import sys
+import random
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 import matplotlib.pyplot as plt
@@ -409,6 +410,8 @@ def load_construct_run_pymc3_model(
             whileloop_failsafe = 0
             while len(list_of_map_vars) > 0:
                 highest_logp = -np.inf
+                random.shuffle(list_of_map_vars)
+
                 try:
                     next_map_var = []
                     next_map_soln = []
@@ -430,7 +433,7 @@ def load_construct_run_pymc3_model(
                     best_map_list.append(next_map_var)
                     
                     print("-"*50)
-                    print(f"N_best: {len(best_map_list)}, N_left: {len(list_of_map_vars)}, {next_map_var}")
+                    print(f"N_best: {len(best_map_list)}, N_left: {len(list_of_map_vars)}, {next_map_var}, logp: {logp0} -> {logp1}")
                     plotn = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, title=f' after {next_map_var} opt step', 
                                                               filename=filename_base + f' after {next_map_var} opt step'.replace(' ','_'),
                                                               RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
