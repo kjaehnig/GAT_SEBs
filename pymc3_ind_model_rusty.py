@@ -546,6 +546,10 @@ def load_construct_run_pymc3_model(
     # Ndraw = 500
     # chains = 4
 
+    if norun: 
+        return
+
+
     random_seeds = [int(f'26113668{ii+1}') for ii in range(chains)]
     print(random_seeds)
     with model:
