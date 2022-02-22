@@ -38,7 +38,8 @@ def wrapper_function(index=0,
                     nd=500,
                     nc=2,
                     sf=5,
-                    ns=5):
+                    ns=5,
+                    norun=0):
 
 
     tic_systems_of_interest = [
@@ -67,7 +68,8 @@ def wrapper_function(index=0,
                                     Ndraw=nd, 
                                     chains=nc, 
                                     sparse_factor=sf, 
-                                    nsig=ns)
+                                    nsig=ns,
+                                    norun=norun)
 
 
 result = OptionParser()
@@ -86,7 +88,8 @@ result.add_option("--sf", dest='sf', default=5, type='int',
                 help='how sparse to make the lightcurve data before running pymc3 (default: 5)')
 result.add_option("--ns", dest='ns', default=5, type='int',
                 help='number of sigma to consider in constructing isochrones BinMod distributions (default: 5)')
-
+result.add_option("--norun", dest='norun', default=0, type='int',
+                help='if 1 then perform MAP steps, sigmaclip, 2nd MAP steps, w/ no MCMC')
 
 if __name__ == "__main__":
     opt,arguments = result.parse_args()

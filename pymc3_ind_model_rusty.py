@@ -121,10 +121,10 @@ def load_construct_run_pymc3_model(
     TIC_TARGET = f'TIC {TIC_TARGET}'
 
 
-    pymc3_model_dict = hf.load_precompiled_pymc3_model_data(DD, TIC_TARGET,
-                                                        sparse_factor=sparse_factor)
-    # pymc3_model_dict = load_all_data_for_pymc3_model(TIC_TARGET, 
-    #     sparse_factor=sparse_factor, nsig=nsig)
+    # pymc3_model_dict = hf.load_precompiled_pymc3_model_data(DD, TIC_TARGET,
+    #                                                     sparse_factor=sparse_factor)
+    pymc3_model_dict = hf.load_all_data_for_pymc3_model(TIC_TARGET, 
+        sparse_factor=sparse_factor, nsig=nsig, sparsify_phase_curve=True)
 
     tic_dest, fig_dest = hf.check_for_system_directory_rusty_side(DD,TIC_TARGET, return_directories=True)
 
@@ -431,7 +431,8 @@ def load_construct_run_pymc3_model(
                     map_soln = next_map_soln
                     list_of_map_vars.remove(next_map_var)
                     best_map_list.append(next_map_var)
-                    
+
+                    logp0,logp1 = opti_logp[-2],opti_logp[-1]                    
                     print("-"*50)
                     print(f"N_best: {len(best_map_list)}, N_left: {len(list_of_map_vars)}, {next_map_var}, logp: {logp0} -> {logp1}")
                     plotn = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, title=f' after {next_map_var} opt step', 

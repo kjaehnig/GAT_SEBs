@@ -551,8 +551,58 @@ def run_with_sparse_data(x,y,yerr, sparse_factor=5, return_mask=False):
         return (x,y,yerr)
 
 
+def sparse_out_eclipse_phase_curve(pymc3_model_dict,sf):
 
-def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, save_data_to_dict=False):
+    x,y,yerr = pymc3_model_dict['x'], pymc3_model_dict['y'], pymc3_model_dict['yerr']
+    lit_period, lit_t0, lit_tn = pymc3_model_dict['lit_period'], pymc3_model_dict['lit_t0'], pymc3_model_dict['lit_tn']
+
+    dur1 = pymc3_model_dict['blsres']['duration_at_max_power'].value
+    foldedx = fold(x, lit_period, lit_t0)
+    inds = np.argsort(foldedx)
+    # print(lk_sigma)
+
+    durF = 3.5
+
+    mask1 = (foldedx[inds] > 0.5*lit_period - durF*dur1) & (foldedx[inds] < 0.5*lit_period + durF*dur1)
+    mask2 = (foldedx[inds] > -0.5*lit_period - durF*dur1) & (foldedx[inds] < -0.5*lit_period + durF*dur1)
+    mask3 = (foldedx[inds] > -durF*dur1) & (foldedx[inds] < durF*dur1)
+
+    cmplt_mask = ~mask1&~mask2&~mask3
+    lk_sigma = np.std(y[inds][cmplt_mask])
+
+    x1,y2,yerr2,m = run_with_sparse_data(foldedx[inds][cmplt_mask],
+                                            y[inds][cmplt_mask],
+                                            yerr[inds][cmplt_mask],
+                                            sparse_factor=sf,return_mask=True)
+
+    x_ = np.append(x[inds][~cmplt_mask], x[inds][cmplt_mask][m])
+    y_ = np.append(y[inds][~cmplt_mask], y[inds][cmplt_mask][m])
+    yerr_ = np.append(yerr[inds][~cmplt_mask], yerr[inds][cmplt_mask][m])
+
+    x_ = np.ascontiguousarray(x_, dtype=np.float64)
+    y_ = np.ascontiguousarray(y_, dtype=np.float64)
+    yerr_ = np.ascontiguousarray(yerr_, dtype=np.float64)
+
+    x_inds = np.argsort(x_)
+    y_ = y_[x_inds]
+    yerr_ = yerr_[x_inds]
+    x_ = x_[x_inds]
+
+    pymc3_model_dict['lk_sigma'] = lk_sigma
+
+    if len(x) > 1.5e4:
+        print("sparsifying inter-transit phase curve")
+        x,y,yerr = x_, y_, yerr_
+        pymc3_model_dict['x'], pymc3_model_dict['y'], pymc3_model_dict['yerr'] = x,y,yerr
+    else:
+        print("no need to sparsify, skipping.")
+
+    return pymc3_model_dict
+
+
+def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, 
+                                save_data_to_dict=False,
+                                sparsify_phase_curve=False):
     # TIC_TARGET = 'TIC 20215452'
 
     res, blsres, sysapodat = get_system_data_for_pymc3_model(TIC_TARGET)
@@ -599,7 +649,6 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, save_data
 
     y *= 1e3
 
-
     def run_with_sparse_data(x,y,yerr, use_sparse_data=False, sparse_factor=5):
         if use_sparse_data:
             np.random.seed(68594)
@@ -609,7 +658,9 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, save_data
             yerr = yerr[m]
         return x,y,yerr
 
-    x,y,yerr = run_with_sparse_data(x,y,yerr,True, sparse_factor=sparse_factor)
+    if sparse_factor > 1 and sparsify_phase_curve is not True:
+        print("sparsifying the entire lightcurve")
+        x,y,yerr = run_with_sparse_data(x,y,yerr,True, sparse_factor=sparse_factor)
 
 
     x = np.ascontiguousarray(x, dtype=np.float64)
@@ -674,7 +725,12 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, save_data
         'model_lk_data' :model_lk_data
     }
 
+    if sparsify_phase_curve:
+        print("running inter-transit phase curve sparsification")
+        compiled_dict = sparse_out_eclipse_phase_curve(compiled_dict, sf=sparse_factor)
+
     if save_data_to_dict:
+        print("saving compiled pymc3 dict to memory")
         file = open(DD + 
             f"pymc3_data_dicts/{TIC_TARGET.replace('-','_').replace(' ','_')}_sf{int(sparse_factor)}_pymc3_data_dict",'wb')
         pk.dump(compiled_dict, file)
