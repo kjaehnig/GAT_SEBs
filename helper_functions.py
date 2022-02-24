@@ -487,8 +487,8 @@ def is_pos_def(A):
 def check_for_system_directory(TIC_TARGET, return_directories=False):
     import os
     
-    tess_pwd = "/Users/karljaehnig/CCA_work/GAT/apotess_systems/"
-    current_tess_files = os.listdir("/Users/karljaehnig/CCA_work/GAT/apotess_systems/")
+    tess_pwd = DD+"apotess_systems/"
+    current_tess_files = os.listdir("tess_pwd")
     
     tic_dirname = TIC_TARGET.replace(" ",'_')
     tic_dirname = tic_dirname.replace("-",'_')
