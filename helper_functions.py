@@ -145,7 +145,7 @@ def get_system_data_for_pymc3_model(TICID):
     # if sys.platform in ['linux', 'linux2']:
         # bls_dir = 'ceph/highres_bls/'
     # else:
-    bls_dir = 'joker_TESS_lightcurve_files'
+    bls_dir = 'joker_TESS_lightcurve_files/'
     file = open(DD+f"{bls_dir}{TICID.replace(' ','_').replace('-','_')}_highres_bls_params.pickle",'rb')
     blsres = pk.load(file)
     file.close()
