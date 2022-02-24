@@ -297,7 +297,7 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None):
     corner(az.from_dict(mod.derived_samples[['logMp','logRp','logk','logq','logs']][cmplt_mask].to_dict('list')), 
            plot_contours=False, color='red', fig=fig, zorder=10)
     if fig_dest is None:
-        plt.savefig(f"/Users/karljaehnig/CCA_work/GAT/figs/{TIC_TARGET}_isochrones_BinFitCorner_w_{int(nsig)}sigmaclip.png",dpi=150, bbox_inches='tight')
+        plt.savefig(DD+f"figs/{TIC_TARGET}_isochrones_BinFitCorner_w_{int(nsig)}sigmaclip.png",dpi=150, bbox_inches='tight')
     else:
         plt.savefig(f"{fig_dest}/{TIC_TARGET}_isochrones_BinFitCorner_w_{int(nsig)}sigmaclip.png", dpi=150,bbox_inches='tight')
     
