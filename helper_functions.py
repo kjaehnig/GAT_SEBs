@@ -248,8 +248,12 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None):
     """
     from isochrones import BinaryStarModel
 
+    if sys.platform in ['linux','linux2']:
+        BinResDir = DD + 'ceph/pymultinest_fits/'
+    else:
+        BinResDir = DD + "pymultinest_fits_rusty/"
     ID = TIC_TARGET.split(' ')[1]
-    mod = BinaryStarModel.load_hdf(f"/Users/karljaehnig/CCA_work/GAT/pymultinest_fits_rusty/tic_{ID}_binary_model_obj.hdf")
+    mod = BinaryStarModel.load_hdf(BinResDir + f"tic_{ID}_binary_model_obj.hdf")
     m0,m1,r0,r1,mbol0,mbol1 = mod.derived_samples[['mass_0','mass_1','radius_0', 'radius_1','Mbol_0','Mbol_1']].values.T
     
     num, denom = np.argmin([np.median(m0), np.median(m1)]), np.argmax([np.median(m0), np.median(m1)])
