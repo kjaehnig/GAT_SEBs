@@ -136,16 +136,16 @@ def load_precompiled_pymc3_model_data(DD=None, TIC_TARGET=None, sparse_factor=5)
 
 
 def get_system_data_for_pymc3_model(TICID):
-    allvis17 = astab.Table.read("/Users/karljaehnig/CCA_work/GAT/dr17_joker/allVisit-dr17-synspec.fits",hdu=1, format='fits')
-    allstar17 = astab.Table.read("/Users/karljaehnig/CCA_work/GAT/dr17_joker/allStar-dr17-synspec-gaiaedr3-xm.fits")
+    allvis17 = astab.Table.read(DD+"dr17_joker/allVisit-dr17-synspec.fits",hdu=1, format='fits')
+    allstar17 = astab.Table.read(DD+"dr17_joker/allStar-dr17-synspec-gaiaedr3-xm.fits")
     allstar17 = allstar17[(allstar17['bp_rp'] < 10) & (allstar17['phot_g_mean_mag'] < 25)]
     calibverr = astab.Table.read(DD+'dr17_joker/allVisit-dr17-synspec-min3-calibverr.fits', format='fits', hdu=1)
 
-    file = open(f"/Users/karljaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_highres_bls_params.pickle",'rb')
+    file = open(DD+f"joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_highres_bls_params.pickle",'rb')
     blsres = pk.load(file)
     file.close()
 
-    file = open(f"/Users/karljaehnig/CCA_work/GAT/joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_lightcurve_data.pickle","rb")
+    file = open(DD+f"joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_lightcurve_data.pickle","rb")
     res = pk.load(file)
     file.close()
     
