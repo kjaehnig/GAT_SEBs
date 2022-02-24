@@ -12,6 +12,7 @@ import warnings
 import astropy.table as astab
 from astropy.io import fits
 import os
+import sys
 warnings.filterwarnings('ignore',
     message="WARNING (theano.tensor.opt): Cannot construct a scalar test value from a test value with no size:"
 )
@@ -78,7 +79,6 @@ docs_setup()
 
 def load_system_specific_directory():
 
-    import sys
     what_machine_am_i_on = sys.platform
 
     if what_machine_am_i_on == 'darwin':
@@ -141,7 +141,12 @@ def get_system_data_for_pymc3_model(TICID):
     allstar17 = allstar17[(allstar17['bp_rp'] < 10) & (allstar17['phot_g_mean_mag'] < 25)]
     calibverr = astab.Table.read(DD+'dr17_joker/allVisit-dr17-synspec-min3-calibverr.fits', format='fits', hdu=1)
 
-    file = open(DD+f"joker_TESS_lightcurve_files/{TICID.replace(' ','_').replace('-','_')}_highres_bls_params.pickle",'rb')
+
+    if sys.platform in ['linux', 'linux2']:
+        bls_dir = 'ceph/highres_bls/'
+    else:
+        bls_dir = 'joker_TESS_lightcurve_files'
+    file = open(DD+f"{bls_dir}{TICID.replace(' ','_').replace('-','_')}_highres_bls_params.pickle",'rb')
     blsres = pk.load(file)
     file.close()
 
