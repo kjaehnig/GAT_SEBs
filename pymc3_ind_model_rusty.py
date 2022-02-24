@@ -94,7 +94,8 @@ def load_construct_run_pymc3_model(
                                     chains=4, 
                                     sparse_factor=5, 
                                     nsig=5,
-                                    norun=0
+                                    norun=0,
+                                    newgp=0
                                     ):
 
     theano_root = DD + f"mcmc_chains/"
@@ -244,11 +245,21 @@ def load_construct_run_pymc3_model(
                 testval= 3.0 * lit_period,
                 **pmx.estimate_inverse_gamma_parameters(0.1,15.0)
             )
+
+            if newgp:
+                q_gp = pm.Uniform(
+                "q_gp",
+                lower=0.1,
+                upper=0.99,
+                testval=1./4
+                )
+            else:
+                q_gp = 1./4.
     #         sigma_lc = np.mean(yerr)
     #         sigma_gp = lk_sigma
     #         rho_gp = 0.25*lit_period
-            print(sigma_lc, sigma_gp, rho_gp)
-            kernel_lc = terms.SHOTerm(sigma=sigma_gp, rho=rho_gp, Q=1.0 / 4.)
+            print(sigma_lc, sigma_gp, rho_gp, q_gp)
+            kernel_lc = terms.SHOTerm(sigma=sigma_gp, rho=rho_gp, Q=q_gp)
 
     #         # Noise model for the radial velocities
     #         sigma_rv = pm.InverseGamma(
@@ -449,8 +460,10 @@ def load_construct_run_pymc3_model(
                 if whileloop_failsafe > 20:
                     break
             
-            
-            map_soln, info_ = pmx.optimize(map_soln, [sigma_lc, sigma_gp, rho_gp], return_info=True)
+            gp_params = [sigma_gp, rho_gp, sigma_lc]
+            if newgp:
+                gp_params.append(q_gp)
+            map_soln, info_ = pmx.optimize(map_soln, gp_params, return_info=True)
             plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title=' after GP params opt step',
                                                      filename=filename_base + ' after GP params opt step'.replace(' ','_'),
@@ -728,6 +741,8 @@ result.add_option("--nsig", dest='nsig', default=5, type='int',
                 help='number of sigma to consider in constructing isochrones BinMod distributions (default: 5)')
 result.add_option("--norun", dest='norun', default=0, type='int',
                 help='if 1 then perform MAP steps, sigmaclip, 2nd MAP steps, w/ no MCMC')
+result.add_option("--newgp", dest='newgp', default=0, type='int',
+                help='if 1 then add qual param to GP as prior')
 
 if __name__ == "__main__":
     opt,arguments = result.parse_args()
