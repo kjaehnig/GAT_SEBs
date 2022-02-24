@@ -576,7 +576,7 @@ def load_construct_run_pymc3_model(
             # Parallel sampling runs poorly or crashes on macos
             cores=chains,
             chains=chains,
-            target_accept=0.99,
+            target_accept=0.999,
             return_inferencedata=True,
             random_seed=random_seeds,##[261136681, 261136682,261136683,261136684],#261136685, 261136686,261136687,261136688],
             init='jitter+adapt_full'
