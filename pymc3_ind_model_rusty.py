@@ -148,7 +148,7 @@ def load_construct_run_pymc3_model(
     LOGiso_k = pymc3_model_dict['isores']['logk']
     LOGiso_s = pymc3_model_dict['isores']['logs']
 
-
+    print(f"lightcurve for {TIC_TARGET} has {len(x)} datapoints")
     trv = np.linspace(x_rv.min(), x_rv.max(), 5000)
     tlc = np.arange(x.min(), x.max(), np.median(np.diff(x)))
 
@@ -388,9 +388,11 @@ def load_construct_run_pymc3_model(
                                                      title=' after b opt step',
                                                      filename = filename_base + ' after b opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
+            b_logp = -info_['fun']
             filename_list.append(plot)
-
-
+            if ~np.isfinite(-info_['fun']):
+                list_of_map_vars.append('b')
+                map_vars_dict['b'] = b
 
 
             map_soln, info_ = pmx.optimize(map_soln, ecs, return_info=True)
