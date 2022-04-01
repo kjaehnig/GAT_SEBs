@@ -163,7 +163,7 @@ def load_construct_run_pymc3_model(
 
             # Systemic parameters
             mean_lc = pm.Normal("mean_lc", mu=0.0, sd=10.0)
-            mean_rv = pm.Normal("mean_rv", mu=0.0, sd=50.0)
+            mean_rv = pm.Normal('mean_rv', mu=0.0, sd=50.0)
 
             u1 = xo.QuadLimbDark("u1")
             u2 = xo.QuadLimbDark("u2")

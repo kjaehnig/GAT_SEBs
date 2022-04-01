@@ -43,7 +43,7 @@ def run_highres_bls_across_tess_obs(index=0, ngrid=100000):
         ]
 
     tic = tic_systems_of_interest[index]
-
+    print(tic)
     res_dir = DD + "ceph/highres_bls/"
     # if not os.path.exists(res_dir):
         # os.mkdir(res_dir)
@@ -60,7 +60,7 @@ def run_highres_bls_across_tess_obs(index=0, ngrid=100000):
     jk_row = res['joker_param']
 
     
-    dur_grid = np.exp(np.linspace(np.log(0.001),np.log(0.099),50))
+    dur_grid = np.exp(np.linspace(np.log(0.001),np.log(0.1),20))
     
 #     npts = 5000
 #     pmin = period_grid.min()
@@ -86,8 +86,8 @@ def run_highres_bls_across_tess_obs(index=0, ngrid=100000):
 
     baseline = max(all_lk.time.value) - min(all_lk.time.value)
 
-    max_period = 0.5 * baseline#2.*jk_row['MAP_P']
-    min_period = 0.1 #1.5 * max(dur_grid)
+    max_period = jk_row['MAP_P'] + 0.1 * jk_row['MAP_P']
+    min_period = jk_row['MAP_P'] - 0.1 * jk_row['MAP_P']##0.1 #1.5 * max(dur_grid)
     print(f"min per:{min_period}, max dur: {max(dur_grid)}")      #0.5 * jk_row['MAP_P']
     nf =   ngrid   #5 * 10**5
     
@@ -102,6 +102,7 @@ def run_highres_bls_across_tess_obs(index=0, ngrid=100000):
                                     minimum_period = min_period,
                                     frequency_factor=freq_f)
     # assert min(period_grid.value) >= max(dur_grid)
+    print(period_grid)
     print(min(period_grid), max(dur_grid))
 #     print(nf, len(period_grid))
     assert nf==len(period_grid)
@@ -131,8 +132,9 @@ def run_highres_bls_across_tess_obs(index=0, ngrid=100000):
                hf.fold(all_lk.time.value, nper*cusBLSperiod.value, cusBLSt0.value), 
                all_lk.flux.value, marker='o',s=0.5,  
                c=all_lk.time.value - all_lk.time.min().value,
-               cmap='inferno')
-
+               cmap='inferno',
+               label=f'{nper} * period')
+        ax[ii].legend()
         hbins, num = hf.folded_bin_histogram(lks=all_lk, 
                                         bls_period=nper*cusBLSperiod.value, 
                                         bls_t0=cusBLSt0.value)
@@ -150,7 +152,7 @@ def run_highres_bls_across_tess_obs(index=0, ngrid=100000):
     
 result = OptionParser()
 result.add_option('-i', dest='index', default=0, type='int', 
-                help='tic ID number of target (defaults to 20215451)')
+                help='index of tic ID number of target (defaults to 0)')
 result.add_option("--ngrid", dest='ngrid', default=100000, type='int',
                 help='number of pts in period grid (default: 1e5)')
 

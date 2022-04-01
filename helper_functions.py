@@ -164,27 +164,27 @@ def get_system_data_for_pymc3_model(TICID):
     return (res, blsres, sysapodat)
 
 
-def highres_secondary_transit_bls(res, blsres):
+def highres_secondary_transit_bls(lkdat, blsres):
     
-    jk_row = res['joker_param']
 
     
-    dur_grid = np.exp(np.linspace(np.log(0.001),np.log(0.1),1000))
+    dur_grid = np.exp(np.linspace(np.log(0.0001),
+                np.log(0.5 * blsres['period_at_max_power'].value),1000))
     
 #     npts = 5000
 #     pmin = period_grid.min()
 #     pmax = period_grid.max()
 #     mindur = dur_grid.min()
 
-    all_lk = res['lk_coll'].stitch(corrector_func=lambda x: x.remove_nans().normalize().flatten())
+    # all_lk = lkdat.stitch(corrector_func=lambda x: x.remove_nans().normalize())
     
-    transit_mask = all_lk.create_transit_mask(
+    transit_mask = lkdat.create_transit_mask(
         period=blsres['period_at_max_power'].value,
         duration=5*blsres['duration_at_max_power'].value,
         transit_time=blsres['t0_at_max_power'].value
     )
 
-    no_transit_lks = all_lk[~transit_mask]
+    no_transit_lks = lkdat[~transit_mask]
         
 
 
@@ -194,10 +194,10 @@ def highres_secondary_transit_bls(res, blsres):
 
     cusBLS = astropy.timeseries.BoxLeastSquares(x, y, yerr)
 
-    max_period = 100. * blsres['period_at_max_power'].value
-    min_period = .011      #0.5 * jk_row['MAP_P']
-    nf =   5 * 10**5    #5 * 10**5
-    baseline = max(all_lk.time.value) - min(all_lk.time.value)
+    max_period = 1.5 * blsres['period_at_max_power'].value
+    min_period = 0.95 * blsres['period_at_max_power'].value      #0.5 * jk_row['MAP_P']
+    nf =   100    #5 * 10**5
+    baseline = max(lkdat.time.value) - min(lkdat.time.value)
     
     min_f = 1. / max_period
     max_f = 1. / min_period
@@ -380,20 +380,30 @@ def print_out_stellar_type(M,R):
 def write_a_story_for_system(TIC_TARGET='TIC 20215452', model_type='1x',
                     Ntune=1000, Ndraw=500, chains=4, return_dict=False):
 
-    file = open(f"/Users/karljaehnig/CCA_work/GAT/pymc3_models/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_individual_priors_{model_type}_isochrones.pickle",'rb')
+    file = open(f"/Users/karljaehnig/CCA_work/GAT/pymc3_models/{TIC_TARGET}_sf5_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_individual_priors_{model_type}_isochrones.pickle",'rb')
     res_dict = pk.load(file)
     file.close()
 
     flat_samps = res_dict['trace'].posterior.stack(sample=('chain','draw'))
 
     m1 = flat_samps['M1'].median().values
+    m1e = np.median(abs(m1 - flat_samps['M1'].values)) * 1.4826
+
     r1 = flat_samps['R1'].median().values
+    r1e = np.median(abs(r1 - flat_samps['R1'].values)) * 1.4826
+
     logg1 = np.log(m1) - 2.*np.log(r1) + 4.437
+    logg1e = np.median(abs(logg1 - (np.log(flat_samps['M1'].values) - 2.*np.log(flat_samps['R1'].values) + 4.437))) * 1.4826
     stype1 = print_out_stellar_type(m1,r1)
 
     m2 = flat_samps['M2'].median().values
+    m2e = np.median(abs(m2 - flat_samps['M2'].values)) * 1.4826
+
     r2 = flat_samps['R2'].median().values
+    r2e = np.median(abs(r2 - flat_samps['R2'].values)) * 1.4826
+    
     logg2 = np.log(m2) - 2.*np.log(r2) + 4.437
+    logg2e = np.median(abs(logg2 - (np.log(flat_samps['M2'].values) - 2.*np.log(flat_samps['R2'].values) + 4.437))) * 1.4826
     stype2 = print_out_stellar_type(m2,r2)
 
     a = flat_samps['a'].median().values
@@ -409,12 +419,12 @@ def write_a_story_for_system(TIC_TARGET='TIC 20215452', model_type='1x',
     print(f"This binary system has a period of {period:.3f} days.")
 
     if return_dict:
-        return {'m1':m1,'r1':r1,'logg1':logg1,'stype1':stype1,
-                'm2':m2,'r2':r2,'logg2':logg2,'stype2':stype2,
+        return {'m1':m1,'m1e':m1e,'r1':r1,'r1e':r1e,'logg1':logg1,'logg1e':logg1e,'stype1':stype1,
+                'm2':m2,'m2e':m2e,'r2':r2,'r2e':r2e,'logg2':logg2,'logg2e':logg2e,'stype2':stype2,
                 'a':a,'incl':incl,'ecc':ecc,'period':period, 'omega':omega}
 
 
-def get_nearest_eep_from_logg(TIC_ID):
+def get_nearest_eep_and_evol_state(TIC_ID, ndraws=100):
 
 
     eep_dict = {1: 'PMS',
@@ -431,45 +441,112 @@ def get_nearest_eep_from_logg(TIC_ID):
 
     ticparams = get_system_data_for_pymc3_model(TIC_ID.replace(' ','_').replace('-','_'))
 
-    FEH = ticparams[0]['joker_param']['FE_H']
+    # try:
+    FEH = float(ticparams[0]['joker_param']['FE_H'])
+    FEHe = float(ticparams[0]['joker_param']['FE_H_ERR'])
+    # except:
+        # FEH = ticparams[0]['joker_param']['FE_H']
+        # FEHe = ticparams[0]['joker_param']['FE_H_ERR']
+    # try:
+    print(FEH, FEHe)
+    # except:
+        # FEH, FEHe = 0.0, 0.05
 
     sysparams = write_a_story_for_system(TIC_TARGET=TIC_ID,
-                                        model_type='8x',chains=6,return_dict=True)
+                                        model_type='32x',chains=8,Ntune=2000,Ndraw=1000,return_dict=True)
 
     print(sysparams)
-    M1,LOGG1 = sysparams['m1'],sysparams['logg1']
-    M2,LOGG2 = sysparams['m2'],sysparams['logg2']
+    M1,M1e,LOGG1,LOGG1e,R1,R1e = sysparams['m1'],sysparams['m1e'],sysparams['logg1'],sysparams['logg1e'],sysparams['r1'],sysparams['r1e']
+    M2,M2e,LOGG2,LOGG2e,R2,R2e = sysparams['m2'],sysparams['m2e'],sysparams['logg2'],sysparams['logg2e'],sysparams['r2'],sysparams['r2e']
 
-    valid_eep1,valid_eep2 = [],[]
-
-    ages = np.linspace(6, 10.12, 25000)
 
     from isochrones.mist import MIST_EvolutionTrack
     mtrack = MIST_EvolutionTrack()
 
-    for iage in tqdm(ages):
-        # try:
-        test_eep1 = mtrack.get_eep_accurate(mass=M1, age=iage, feh=FEH)
-        valid_eep1.append(test_eep1)
+    gdraws = 0 
+    m1arr = np.array([])
+    m2arr = np.array([])
+    agearr = np.array([])
+    feharr = np.array([])
+    eep1arr = np.array([])
+    eep2arr = np.array([])
 
+    chi1_arr = np.array([])
+    chi2_arr = np.array([])
 
+    for idraw in tqdm(range(ndraws)):
         try:
-            test_eep2 = mtrack.get_eep_accurate(M2, iage, FEH)
-            valid_eep2.append(test_eep2)
+            agedraw = np.random.uniform(low=6, high=10.2)
+            m1draw = np.random.normal(loc=M1, scale=M1e)
+            m2draw = np.random.normal(loc=M2, scale=M2e)
+            fehdraw = np.random.normal(loc=FEH, scale=FEHe)
+
+            test_eep1 = mtrack.get_eep_accurate(mass=m1draw, age=agedraw, feh=fehdraw)
+            test_eep2 = mtrack.get_eep_accurate(mass=m2draw, age=agedraw, feh=fehdraw)
+        # valid_eep1.append(test_eep1)
+
+
+            m1arr = np.append(m1arr, m1draw)
+            m2arr = np.append(m2arr,m2draw)
+            agearr = np.append(agearr,agedraw)
+            feharr = np.append(feharr, fehdraw)
+            eep1arr = np.append(eep1arr, test_eep1)
+            eep2arr = np.append(eep2arr, test_eep2)
+            # print(f"N successful draws: {gdraws} out of {ndraws}\033[1A")
+        # try:
+            # test_eep2 = mtrack.get_eep_accurate(M2, iage, FEH)
+            # valid_eep2.append(test_eep2)
+
+            interp_vals1 = mtrack.interp_value([m1draw, test_eep1, fehdraw], ['logg','radius'])
+            interp_vals2 = mtrack.interp_value([m2draw, test_eep2, fehdraw], ['logg','radius'])
+            chi2_1 = ( 
+                ((m1draw - M1)**2. ) + 
+                ((LOGG1 - interp_vals1[0])**2. ) + 
+                ((R1 - interp_vals1[1])**2. )
+                )
+            # print(chi2_1)
+
+            chi2_2 = ( 
+                ((m2draw - M2)**2. ) + 
+                ((LOGG2 - interp_vals2[0])**2. ) + 
+                ((R2 - interp_vals2[1])**2. )
+                )
+            chi1_arr = np.append(chi1_arr, chi2_1)
+            chi2_arr = np.append(chi2_arr, chi2_2)
+            gdraws += 1
+
         except:
-            continue 
-    print(len(valid_eep1), len(valid_eep2))
-    valid_logg1 = [mtrack.interp_value([M1, ee, FEH], ['logg'])[0] for ee in valid_eep1]
-    valid_logg2 = [mtrack.interp_value([M2, ee, FEH], ['logg'])[0] for ee in valid_eep2]
+            continue
+    print(f"N successful draws: {gdraws} out of {ndraws}")
 
-    closest_eep1 = valid_eep1[np.argmin(abs(np.array(valid_logg1) - LOGG1))]
-    closest_eep2 = valid_eep2[np.argmin(abs(np.array(valid_logg2) - LOGG2))]
 
-    closest_state1 = np.argmin(abs(primary_eeps - closest_eep1))
-    closest_state2 = np.argmin(abs(primary_eeps - closest_eep2))
+    # print(len(valid_eep1), len(valid_eep2))
+    closest_eep1 = eep1arr[np.argmin(chi1_arr)]
+    closest_eep2 = eep2arr[np.argmin(chi2_arr)]
 
-    print(f'M1 appears to be in the {eep_dict[closest_state1]} state')
-    print(f'M2 appears to be in the {eep_dict[closest_state2]} state')
+    closest_state1 = primary_eeps[np.argmin(abs(primary_eeps - closest_eep1))]
+    closest_state2 = primary_eeps[np.argmin(abs(primary_eeps - closest_eep2))]
+
+    next_state1 = primary_eeps[np.argmin(abs(primary_eeps - closest_eep1)) + 1]
+    prev_state1 = primary_eeps[np.argmin(abs(primary_eeps - closest_eep1)) - 1]
+    next_state2 = primary_eeps[np.argmin(abs(primary_eeps - closest_eep1)) + 1]
+    prev_state2 = primary_eeps[np.argmin(abs(primary_eeps - closest_eep1)) - 1]
+
+    added_str1 = ''
+    added_str2 = ''
+    if abs(next_state1 - closest_state1) > abs(closest_state1 - prev_state1):
+        added_str1 = f'having left the {eep_dict[prev_state1]} state'
+    else:
+        added_str1 = f'and is approaching the {eep_dict[next_state1]} state'
+    if abs(next_state2 - closest_state2) > abs(closest_state2 - prev_state2):
+        added_str2 = f'having left the {eep_dict[prev_state2]} state'
+    else:
+        added_str2 = f'and is approaching the {eep_dict[next_state2]} state'
+
+    print(closest_state1, closest_eep1, closest_state2, closest_eep2)
+    print(f"The system appears to be {agearr[np.argmin(chi1_arr)]} logt ")
+    print(f'M1 appears to be in the {eep_dict[closest_state1]} state, {added_str1}')
+    print(f'M2 appears to be in the {eep_dict[closest_state2]} state, {added_str2}')
 
 
 def fold(x, period, t0):
@@ -560,7 +637,7 @@ def run_with_sparse_data(x,y,yerr, sparse_factor=5, return_mask=False):
         return (x,y,yerr)
 
 
-def sparse_out_eclipse_phase_curve(pymc3_model_dict,sf):
+def sparse_out_eclipse_phase_curve(pymc3_model_dict,sf,dur):
 
     x,y,yerr = pymc3_model_dict['x'], pymc3_model_dict['y'], pymc3_model_dict['yerr']
     lit_period, lit_t0, lit_tn = pymc3_model_dict['lit_period'], pymc3_model_dict['lit_t0'], pymc3_model_dict['lit_tn']
@@ -570,7 +647,7 @@ def sparse_out_eclipse_phase_curve(pymc3_model_dict,sf):
     inds = np.argsort(foldedx)
     # print(lk_sigma)
 
-    durF = 3.5
+    durF = dur
 
     mask1 = (foldedx[inds] > 0.5*lit_period - durF*dur1) & (foldedx[inds] < 0.5*lit_period + durF*dur1)
     mask2 = (foldedx[inds] > -0.5*lit_period - durF*dur1) & (foldedx[inds] < -0.5*lit_period + durF*dur1)
@@ -611,7 +688,8 @@ def sparse_out_eclipse_phase_curve(pymc3_model_dict,sf):
 
 def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, 
                                 save_data_to_dict=False,
-                                sparsify_phase_curve=False):
+                                sparsify_phase_curve=False,
+                                dur=3.5):
     # TIC_TARGET = 'TIC 20215452'
 
     res, blsres, sysapodat = get_system_data_for_pymc3_model(TIC_TARGET)
@@ -711,11 +789,12 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3,
     print(Ntrans)
     lit_tn = lit_t0  + Ntrans * lit_period
 
-    bls2res = highres_secondary_transit_bls(res,blsres)
+    bls2res = highres_secondary_transit_bls(model_lk_data,blsres)
     ecosw_tv = estimate_ecosw(bls2res, blsres)
 
     compiled_dict =  {
         'texp' : texp,
+        'x_lk_ref' : x_lk_ref,
         'x' : x,
         'y' : y,
         'yerr' : yerr,
@@ -736,7 +815,7 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3,
 
     if sparsify_phase_curve:
         print("running inter-transit phase curve sparsification")
-        compiled_dict = sparse_out_eclipse_phase_curve(compiled_dict, sf=sparse_factor)
+        compiled_dict = sparse_out_eclipse_phase_curve(compiled_dict, sf=sparse_factor, dur=dur)
 
     if save_data_to_dict:
         print("saving compiled pymc3 dict to memory")
@@ -1249,3 +1328,47 @@ def folded_bin_histogram(Nbins=100, lks=None, bls_period=None, bls_t0=None):
             num)
 
 
+
+def get_edr3_dr2_xmatch(data, id_col='GaiaDR2'):
+    """ Main code format taken from Auriga Neural Net github page. Takes a
+    dataframe of Gaia DR2 source_ids and cross-matches them with the cross
+    matching done by the Gaia collaboration between the DR2 catalog and the
+    EDR3 catalog.
+
+    Parameters
+    ----------
+        data : pandas dataframe
+            Stars for which you want to download data for. Must include the
+            columns 'Cluster', 'source_id', and 'tag'
+    Returns
+    -------
+        dat : pandas dataframe
+            Results from Gaia ADQL query converted to pandas dataframe.
+    """
+    from astroquery.gaia import Gaia 
+    from astropy.table import Table
+
+    Gaia.login(user='kjaehnig',
+                password='Legacyofash117!', verbose=True)
+
+    table = Table([data['Cluster'],data[id_col],data['proba']],# data['bss_flag']],
+                names=['Cluster','orig_id','proba'])
+    res = Gaia.launch_job_async(query="select tc.Cluster as Cluster, tc.orig_id, tc.proba, \
+            gedr3.source_id,\
+            gedr3.parallax, gedr3.phot_g_mean_mag, gedr3.bp_rp, \
+            edr3_dr2_xm.angular_distance, edr3_dr2_xm.magnitude_difference \
+            from gaiaedr3.gaia_source as gedr3 \
+            inner join  gaiaedr3.dr2_neighbourhood as edr3_dr2_xm \
+                on gedr3.source_id = edr3_dr2_xm.dr3_source_id \
+            inner join gaiadr2.gaia_source as dr2 \
+                on edr3_dr2_xm.dr2_source_id = dr2.source_id \
+            inner join TAP_UPLOAD.table_test as tc \
+                on edr3_dr2_xm.dr2_source_id = tc.orig_id \
+            where edr3_dr2_xm.angular_distance <= 1 AND \
+                  edr3_dr2_xm.magnitude_difference <= 0.1",
+            upload_resource=table, upload_table_name='table_test')
+    dat = res.get_results().to_pandas() 
+    # dat['Cluster'] = dat.Cluster.str.decode("UTF-8")
+
+
+    return dat
