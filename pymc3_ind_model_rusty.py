@@ -94,7 +94,8 @@ def load_construct_run_pymc3_model(
                                     chains=4, 
                                     sparse_factor=5, 
                                     nsig=5,
-                                    norun=0
+                                    norun=0,
+                                    center=0
                                     ):
 
     theano_root = DD + f"mcmc_chains/"
@@ -123,12 +124,14 @@ def load_construct_run_pymc3_model(
 
     # pymc3_model_dict = hf.load_precompiled_pymc3_model_data(DD, TIC_TARGET,
     #                                                     sparse_factor=sparse_factor)
+    center_data = 'APOGEE' if center==1 else "TESS"
+    print(f"centering lightcurve and RVs on {center_data}")
     pymc3_model_dict = hf.load_all_data_for_pymc3_model(
                         TIC_TARGET, 
                         sparse_factor=sparse_factor, 
                         nsig=nsig, 
                         sparsify_phase_curve=True,
-                        center_on='APOGEE')
+                        center_on=center_data)
 
     tic_dest, fig_dest = hf.check_for_system_directory_rusty_side(DD,TIC_TARGET, return_directories=True)
 
@@ -735,6 +738,8 @@ result.add_option("--nsig", dest='nsig', default=5, type='int',
                 help='number of sigma to consider in constructing isochrones BinMod distributions (default: 5)')
 result.add_option("--norun", dest='norun', default=0, type='int',
                 help='if 1 then perform MAP steps, sigmaclip, 2nd MAP steps, w/ no MCMC')
+result.add_option("--center", dest='center', default=0, type='int',
+                help="which period/t0 to center data on (0=TESS, 1=APOGEE)")
 
 if __name__ == "__main__":
     opt,arguments = result.parse_args()
