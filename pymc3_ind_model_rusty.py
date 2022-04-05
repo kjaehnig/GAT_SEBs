@@ -123,8 +123,12 @@ def load_construct_run_pymc3_model(
 
     # pymc3_model_dict = hf.load_precompiled_pymc3_model_data(DD, TIC_TARGET,
     #                                                     sparse_factor=sparse_factor)
-    pymc3_model_dict = hf.load_all_data_for_pymc3_model(TIC_TARGET, 
-        sparse_factor=sparse_factor, nsig=nsig, sparsify_phase_curve=True)
+    pymc3_model_dict = hf.load_all_data_for_pymc3_model(
+                        TIC_TARGET, 
+                        sparse_factor=sparse_factor, 
+                        nsig=nsig, 
+                        sparsify_phase_curve=True,
+                        center_on='APOGEE')
 
     tic_dest, fig_dest = hf.check_for_system_directory_rusty_side(DD,TIC_TARGET, return_directories=True)
 
@@ -136,7 +140,7 @@ def load_construct_run_pymc3_model(
     lit_period, lit_t0, lit_tn = pymc3_model_dict['lit_period'], pymc3_model_dict['lit_t0'], pymc3_model_dict['lit_tn']
     Ntrans, ecosw_tv = pymc3_model_dict['Ntrans'], pymc3_model_dict['ecosw_tv']
     print('ecosw_tv: ', ecosw_tv)
-    if abs(ecosw_tv) > 0.01:
+    if abs(ecosw_tv) > 0.01 and TIC_TARGET != 'TIC 258108067':
         print(f"calculated ecosw_tv too high. Resetting to {np.sign(ecosw_tv) * 0.01}")
         ecosw_tv = np.sign(ecosw_tv) * 0.01
 

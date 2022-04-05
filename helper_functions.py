@@ -689,7 +689,8 @@ def sparse_out_eclipse_phase_curve(pymc3_model_dict,sf,dur):
 def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, 
                                 save_data_to_dict=False,
                                 sparsify_phase_curve=False,
-                                dur=3.5):
+                                dur=3.5,
+                                center_on='TESS'):
     # TIC_TARGET = 'TIC 20215452'
 
     res, blsres, sysapodat = get_system_data_for_pymc3_model(TIC_TARGET)
@@ -725,7 +726,13 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3,
     y =    model_lk_data.remove_nans().flux.value
     yerr = model_lk_data.remove_nans().flux_err.value
 
-    x_lk_ref = min(x)
+    if center_on == 'TESS':
+        x_lk_ref = min(x)
+    if center_on == 'APOGEE':
+        x_lk_ref = min(x_rv)
+
+    min_xTESS = min(x)
+    min_xAPO = min(x_rv)
 
     x_rv = x_rv - x_lk_ref
 
@@ -759,9 +766,14 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3,
     y_rv = np.ascontiguousarray(y_rv, dtype=np.float64)
     yerr_rv = np.ascontiguousarray(yerr_rv, dtype=np.float64)
 
-    bls_period = blsres['period_at_max_power'].value
-    print(blsres['t0_at_max_power'].btjd-x_lk_ref)
-    bls_t0 = blsres['t0_at_max_power'].btjd - x_lk_ref
+    if center_on == 'TESS':
+        bls_period = blsres['period_at_max_power'].value
+        bls_t0 = blsres['t0_at_max_power'].btjd - x_lk_ref
+    if center_on == 'APOGEE':
+        bls_period = res['joker_param']['MAP_P']
+        bls_t0 = astropy.time.Time(res['joker_param']['MAP_t0_bmjd'], 
+                                    format='mjd', scale='tcb').btjd - x_lk_ref
+
     print('lightcurve N datapoints: ',len(x),len(y),len(yerr), 'transit_epoch: ',bls_t0)
 
 
@@ -771,14 +783,18 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3,
     lit_period = bls_period  #bls_period      ### THESE ARE THE TWO VARIABLES USED
     lit_t0 = bls_t0   #bls_t0             ### IN THE PYMC3 MODEL BELOW
 
-
-    transit_mask = model_lk_data.create_transit_mask(
-        period=blsres['period_at_max_power'].value,
-        duration=5*blsres['duration_at_max_power'].value,
-        transit_time=blsres['t0_at_max_power']
-    )
-
-
+    if center_on == 'TESS':
+        transit_mask = model_lk_data.create_transit_mask(
+            period=blsres['period_at_max_power'].value,
+            duration=dur*blsres['duration_at_max_power'].value,
+            transit_time=blsres['t0_at_max_power']
+        )
+    if center_on == "APOGEE":
+        transit_mask = model_lk_data.create_transit_mask(
+            period=lit_period,
+            duration=dur*blsres['duration_at_max_power'].value,
+            transit_time=lit_t0
+        )
     no_transit_lks = model_lk_data[~transit_mask]
     # no_transit_lks = model_lk_data.remove_outliers(sigma=1)
     y_masked = 1000 * (no_transit_lks.flux.value / np.median(no_transit_lks.flux.value) - 1)
@@ -794,6 +810,8 @@ def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3,
 
     compiled_dict =  {
         'texp' : texp,
+        'min_xAPO':min_xAPO,
+        'min_xTESS':min_xTESS,
         'x_lk_ref' : x_lk_ref,
         'x' : x,
         'y' : y,
