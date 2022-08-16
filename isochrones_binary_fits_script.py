@@ -63,12 +63,16 @@ def get_edr3_dr2_xmatch(datrow):
             gedr3.phot_rp_mean_flux, gedr3.phot_rp_mean_flux_error, \
             gedr3.pseudocolour, gedr3.ecl_lat, gedr3.astrometric_params_solved, \
             dr2.source_id as dr2_id, \
+            dr3_dist.r_med_geo, dr3_dist.r_lo_geo, dr3_dist.r_hi_geo, \
+            dr3_dist.r_med_photogeo, dr3_dist.r_lo_photogeo, dr3_dist.r_hi_photogeo, \
             edr3_dr2_xm.angular_distance, edr3_dr2_xm.magnitude_difference \
             from gaiaedr3.gaia_source as gedr3 \
             inner join  gaiaedr3.dr2_neighbourhood as edr3_dr2_xm \
                 on gedr3.source_id = edr3_dr2_xm.dr3_source_id \
             inner join gaiadr2.gaia_source as dr2 \
                 on edr3_dr2_xm.dr2_source_id = dr2.source_id \
+            inner join external.gaiaedr3_distance as dr3_dist \
+                on gedr3.source_id = dr3_dist.source_id \
             where edr3_dr2_xm.dr2_source_id = {orig_id} AND \
                   edr3_dr2_xm.angular_distance <= 1 AND \
                   edr3_dr2_xm.magnitude_difference <= 0.1",)
@@ -95,7 +99,7 @@ def get_2mass_mag_uncertainties(data):
     return d
 
 
-def generate_params_for_multinest(ticnum):
+def generate_params_for_multinest(ticnum, return_edr3=False):
     
     ticrow = hq_joker_edr3_apogee_tess_df.loc[hq_joker_edr3_apogee_tess_df['ID'] == ticnum]
     
@@ -154,10 +158,13 @@ def generate_params_for_multinest(ticnum):
         'eBP3':(ebp3, ebp3e),
         'eRP3':(erp3, erp3e),
         'eG3':(eg3, eg3e),
-        'parallax':(plx_corr , edr3_zpt.parallax_error.squeeze())
+        'parallax':(plx_corr , edr3_zpt.parallax_error.squeeze()),
     }
-    
-    return params
+
+    if return_edr3:   
+        return (params, edr3_zpt)
+    else:
+        return params
 
 
 def add_tess_mag_to_params_dict(params):
@@ -215,10 +222,15 @@ def calculate_only_tmag_w_G_J(params):
 
 def initialize_multinest_binary_model(ticnum):
     from isochrones.priors import GaussianPrior
-    params = generate_params_for_multinest(ticnum)
+    params, edr3_df = generate_params_for_multinest(ticnum, return_edr3=True)
+
+    other_params = add_tess_mag_to_params_dict(params)
 
     params['TESS'] = calculate_only_tmag_w_G_J(params)
-    
+
+    print("$"*120)
+    print(ticnum, calculate_only_tmag_w_G_J(params), other_params['TESS'])
+    print("$"*120)
     # params = add_tess_mag_to_params_dict(params)
 
     mist = get_ichrone('mist', bands=['J','H','K','eBP3','eRP3','eG3','TESS'])
@@ -226,21 +238,26 @@ def initialize_multinest_binary_model(ticnum):
     binarymodel = BinaryStarModel(mist, **params, name=f'TIC_{ticnum}')
     binarymodel.mnest_basename = DD+'ceph'+binarymodel.mnest_basename[1:]
     
-    distance = 1000./params['parallax'][0]
+    # distance = 1000./params['parallax'][0]
 #     feh_bounds = (params['feh'][0]-3*params['feh'][1], params['feh'][0]+3*params['feh'][1])
-#     print(feh_bounds)
-    plus_dist = (1000./(params['parallax'][0] + params['parallax'][1]))
-    mins_dist = (1000./(params['parallax'][0] - params['parallax'][1]))
+    # print(feh_bounds)
+    # plus_dist = (1000./(params['parallax'][0] + params['parallax'][1]))
+    # mins_dist = (1000./(params['parallax'][0] - params['parallax'][1]))
 #     print(plus_dist, mins_dist)
+
+    # mdist_diff = distance - min(plus_dist, mins_dist)
+    # pdist_diff = max(plus_dist, mins_dist) - distance
     
-    mdist_diff = distance - min(plus_dist, mins_dist)
-    pdist_diff = max(plus_dist, mins_dist) - distance
+    # edist_estimate = (mdist_diff + pdist_diff) / 2.
     
-    edist_estimate = (mdist_diff + pdist_diff) / 2.
-    
+    r_lo_pg, r_med_pg, r_hi_pg = edr3_df[['r_lo_photogeo','r_med_photogeo','r_hi_photogeo']].squeeze()
+
+    distance = r_med_pg
+    edist = .5 * ((distance - r_lo_pg) + (r_hi_pg - distance))
+
     binarymodel.set_bounds(eep=(1,1700), age=(6,11.))
-    binarymodel.set_prior(distance=GaussianPrior(distance, 3*edist_estimate, 
-                                                 bounds=(distance-6*edist_estimate, distance+6*edist_estimate)))
+    binarymodel.set_prior(distance=GaussianPrior(distance, 3*edist, 
+                                                 bounds=(distance-6*edist, distance+6*edist)))
 #     print(5.*mdist_diff, distance, 5.*pdist_diff)
     return binarymodel
 
@@ -298,7 +315,7 @@ def get_best_age_eep_mass_bounds(TICNUM):
     # print(tic_params['feh'])
 
     valid_ages, valid_eeps, valid_mass = [], [], []
-    for masses in tqdm(np.linspace(0.1,50,1000), position=0, leave='None'):
+    for masses in tqdm(np.linspace(0.1,50,2000 ), position=0, leave='None'):
         for eep in eep_range:
             interp_vals = track_grid.interp([interp_params['feh'][0], masses, eep], ['age','Teff','logg'])[0]
             age, teff, logg = interp_vals[0], interp_vals[1], interp_vals[2]
@@ -339,6 +356,8 @@ def main(index=0,
     ticsystem = tic_systems_of_interest[index]
 
     binmod = initialize_multinest_binary_model(ticsystem)
+
+    # return
 
     # from mpi4py import MPI 
     # comm = MPI.COMM_WORLD

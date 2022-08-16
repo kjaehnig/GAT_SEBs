@@ -168,8 +168,7 @@ def highres_secondary_transit_bls(lkdat, blsres):
     
 
     
-    dur_grid = np.exp(np.linspace(np.log(0.0001),
-                np.log(0.5 * blsres['period_at_max_power'].value),1000))
+    dur_grid = np.exp(np.linspace(np.log(0.0001),np.log(0.5)))# * blsres['period_at_max_power'].value),1000))
     
 #     npts = 5000
 #     pmin = period_grid.min()
@@ -194,8 +193,8 @@ def highres_secondary_transit_bls(lkdat, blsres):
 
     cusBLS = astropy.timeseries.BoxLeastSquares(x, y, yerr)
 
-    max_period = 1.5 * blsres['period_at_max_power'].value
-    min_period = 0.95 * blsres['period_at_max_power'].value      #0.5 * jk_row['MAP_P']
+    max_period = 1.001 * blsres['period_at_max_power'].value
+    min_period = 0.999 * blsres['period_at_max_power'].value      #0.5 * jk_row['MAP_P']
     nf =   100    #5 * 10**5
     baseline = max(lkdat.time.value) - min(lkdat.time.value)
     
@@ -239,7 +238,7 @@ def estimate_ecosw(bls2res, blsres):
     return ecosw_testval
 
 
-def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None):
+def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None, no_plot=False):
     """
     FOR LATER CONSIDERATION:
     IMPLEMENT A RECURSIVE MAD-SIGMA CLIPPING THAT CONTINUES CLIPPING AT 3-MAD-SIGMA UNTIL THERE ARE 
@@ -290,19 +289,23 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None):
     mod.derived_samples['logq'] = np.log(ms / mp)
     mod.derived_samples['logs'] = np.log(mbols / mbolp)
     
-    fig = corner(az.from_dict(mod.derived_samples[['logMp','logRp','logk','logq','logs']].to_dict('list')))
-    fig.axes[0].set_title(TIC_TARGET + f"\nN: {cmplt_mask.shape[0]}" +f"\nNmask: {cmplt_mask.sum()}" + f"\nNSigClip: {int(nsig)}" )
+    if no_plot is False:
+        fig = corner(az.from_dict(mod.derived_samples[['logMp','logRp','logk','logq','logs']].to_dict('list')))
+        fig.axes[0].set_title(TIC_TARGET + f"\nN: {cmplt_mask.shape[0]}" +f"\nNmask: {cmplt_mask.sum()}" + f"\nNSigClip: {int(nsig)}" )
 
 
-    corner(az.from_dict(mod.derived_samples[['logMp','logRp','logk','logq','logs']][cmplt_mask].to_dict('list')), 
-           plot_contours=False, color='red', fig=fig, zorder=10)
-    if fig_dest is None:
-        plt.savefig(DD+f"figs/{TIC_TARGET}_isochrones_BinFitCorner_w_{int(nsig)}sigmaclip.png",dpi=150, bbox_inches='tight')
-    else:
-        plt.savefig(f"{fig_dest}/{TIC_TARGET}_isochrones_BinFitCorner_w_{int(nsig)}sigmaclip.png", dpi=150,bbox_inches='tight')
-    
+        corner(az.from_dict(mod.derived_samples[['logMp','logRp','logk','logq','logs']][cmplt_mask].to_dict('list')), 
+               plot_contours=False, color='red', fig=fig, zorder=10)
+        
+        if fig_dest is None:
+            plt.savefig(DD+f"figs/{TIC_TARGET}_isochrones_BinFitCorner_w_{int(nsig)}sigmaclip.png",dpi=150, bbox_inches='tight')
+        else:
+            plt.savefig(f"{fig_dest}/{TIC_TARGET}_isochrones_BinFitCorner_w_{int(nsig)}sigmaclip.png", dpi=150,bbox_inches='tight')
+        
     m1 = mp[cmplt_mask]
+    m2 = ms[cmplt_mask]
     r1 = rp[cmplt_mask]
+    r2 = rs[cmplt_mask]
     log_k = np.log(rs / rp)[cmplt_mask]
     log_q = np.log(ms / mp)[cmplt_mask]
     log_s = np.log(mbols / mbolp)[cmplt_mask]
@@ -323,7 +326,9 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None):
     return {'mvPrior_mu':mvPrior_mu, 
             'mvPrior_cov':mvPrior_cov,
             'logm1':[np.mean(np.log(m1)), np.std(np.log(m1))],
+            'logm2':[np.mean(np.log(m2)), np.std(np.log(m2))],
             'logr1':[np.mean(np.log(r1)), np.std(np.log(r1))],
+            'logr2':[np.mean(np.log(r2)), np.std(np.log(r2))],
             'logq':[np.mean(log_q), np.std(log_q)],
             'logs':[np.mean(log_s), np.std(log_s)], 
             'logk':[np.mean(log_k), np.std(log_k)], 
@@ -1373,7 +1378,7 @@ def get_edr3_dr2_xmatch(data, id_col='GaiaDR2'):
                 names=['Cluster','orig_id','proba'])
     res = Gaia.launch_job_async(query="select tc.Cluster as Cluster, tc.orig_id, tc.proba, \
             gedr3.source_id,\
-            gedr3.parallax, gedr3.phot_g_mean_mag, gedr3.bp_rp, \
+            gedr3.parallax, gedr3.phot_g_mean_mag, gedr3.bp_rp, gedr3.ruwe, \
             edr3_dr2_xm.angular_distance, edr3_dr2_xm.magnitude_difference \
             from gaiaedr3.gaia_source as gedr3 \
             inner join  gaiaedr3.dr2_neighbourhood as edr3_dr2_xm \
@@ -1384,6 +1389,42 @@ def get_edr3_dr2_xmatch(data, id_col='GaiaDR2'):
                 on edr3_dr2_xm.dr2_source_id = tc.orig_id \
             where edr3_dr2_xm.angular_distance <= 1 AND \
                   edr3_dr2_xm.magnitude_difference <= 0.1",
+            upload_resource=table, upload_table_name='table_test')
+    dat = res.get_results().to_pandas() 
+    # dat['Cluster'] = dat.Cluster.str.decode("UTF-8")
+
+
+    return dat
+
+
+def download_dr3_data_for_tic_binaries(data):
+    """ 
+    I would inner join to gaiadr3.astrophysical_parameters
+    left outer join to gaiadr3.nss_two_body_orbit
+    left outer join to gaiadr3.binary_masses
+    Parameters
+    ----------
+    Returns
+    -------
+    """
+    from astroquery.gaia import Gaia 
+    from astropy.table import Table
+
+    Gaia.login(user='kjaehnig',
+                password='Legacyofash117!', verbose=True)
+
+    table = Table([data['source_id'], data['tic']],# data['bss_flag']],
+                names=['source_id','tic'])
+    res = Gaia.launch_job_async(query="tc.source_id, tc.tic, \
+            gdr3.source_id,\
+            gdr3.parallax, gdr3.phot_g_mean_mag, gdr3.bp_rp, gdr3.ruwe, \
+            from gaiadr3.gaia_source as gdr3 \
+            inner join gaiaedr3.astrophysical_parameters as dr3_ast_param \
+                on gedr3.source_id = dr3_ast_param.dr3_source_id \
+            left outer join to gaiadr3.nss_two_body_orbit as dr3_2body \
+                on dr3_2body.source_id = gdr3.source_id \
+            inner join TAP_UPLOAD.table_test as tc \
+                on gdr3.source_id = tc.source_id",
             upload_resource=table, upload_table_name='table_test')
     dat = res.get_results().to_pandas() 
     # dat['Cluster'] = dat.Cluster.str.decode("UTF-8")
