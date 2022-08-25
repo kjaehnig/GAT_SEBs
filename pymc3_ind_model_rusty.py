@@ -3,6 +3,7 @@ import astropy.table as astab
 import pandas as pd
 import numpy as np
 import astropy
+import time
 import sys
 import random
 from astropy.coordinates import SkyCoord
@@ -97,7 +98,7 @@ def load_construct_run_pymc3_model(
                                     norun=0,
                                     center=0
                                     ):
-
+    start_time = time.time()
     theano_root = DD + f"mcmc_chains/"
 
     print(f'theano_root_dir = {theano_root}')
@@ -143,7 +144,8 @@ def load_construct_run_pymc3_model(
     lit_period, lit_t0, lit_tn = pymc3_model_dict['lit_period'], pymc3_model_dict['lit_t0'], pymc3_model_dict['lit_tn']
     Ntrans, ecosw_tv = pymc3_model_dict['Ntrans'], pymc3_model_dict['ecosw_tv']
     print('ecosw_tv: ', ecosw_tv)
-    if abs(ecosw_tv) > 0.01 and TIC_TARGET != 'TIC 258108067':
+    # print('skipping manual zeroing of ecosw_tv')
+    if abs(ecosw_tv) > 0.5 and TIC_TARGET != 'TIC 258108067':
         print(f"calculated ecosw_tv too high. Resetting to {np.sign(ecosw_tv) * 0.01}")
         ecosw_tv = np.sign(ecosw_tv) * 0.01
 
@@ -159,6 +161,7 @@ def load_construct_run_pymc3_model(
     trv = np.linspace(x_rv.min(), x_rv.max(), 5000)
     tlc = np.arange(x.min(), x.max(), np.median(np.diff(x)))
 
+    data_time = time.time()
     # rvK = xo.estimate_semi_amplitude(bls_period, x_rv, y_rv*u.km/u.s, yerr_rv*u.km/u.s, t0s=bls_t0)[0]
     # print(rvK)
 
@@ -508,6 +511,7 @@ def load_construct_run_pymc3_model(
     print("#"*19 +"  FINISHED  " + "#"*19)
     print("#"*50)
 
+    first_rnd = time.time()
 
     with model:
         mod = pmx.eval_in_model(
@@ -536,6 +540,8 @@ def load_construct_run_pymc3_model(
     SUFFIX2 = SUFFIX + "_2nd_rnd"
     model, map_soln, extras, start, opti_logp,_ = build_model(
             mask, map_soln, suffix=SUFFIX2, pymc3_model_dict=None)
+
+    sec_rnd = time.time()
 
     # ###### quick fix to save x and y to the main file dump #######
     # file = open(f"/Users/kjaehnig/CCA_work/GAT/pymc3_models/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_{SUFFIX}.pickle",'rb')
@@ -578,7 +584,7 @@ def load_construct_run_pymc3_model(
             random_seed=random_seeds,##[261136681, 261136682,261136683,261136684],#261136685, 261136686,261136687,261136688],
             init='jitter+adapt_full'
         )
-
+    sampling_time = time.time()
 
     def compute_value_in_post(model, idata, target, size=None):
         # Get the names of the untransformed variables
@@ -710,7 +716,18 @@ def load_construct_run_pymc3_model(
     plt.close('all')
 
     ##sys.stdout.close()
+    data_load_time = data_time - start_time
+    model_bld_time = first_rnd - start_time
+    sec_map_time = sec_rnd - start_time
+    sample_time = sampling_time - start_time
 
+    final_time = time.time()
+    total_runtime = final_time - start_time
+    print(f"Total Framework runtime: {total_runtime} s")
+    print(f"Data Load runtime: {data_load_time} s")
+    print(f"Model Build (& MAP1) runtime: {model_bld_time} s")
+    print(f"MAP2 runtime: {sec_map_time} s")
+    print(f"HMC w/ NUTS sampling runtime: {sample_time} s")
 
 # TIC_TARGET='20215452', 
 # COVARIANCE_USE_TYPE='diagonal',

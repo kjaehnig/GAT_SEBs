@@ -30,7 +30,7 @@ print("starting...")
 
 zpt.load_tables()
 
-def get_edr3_dr2_xmatch(datrow):
+def get_edr3_dr2_xmatch(data):
     """ Main code format taken from Auriga Neural Net github page. Takes a
     dataframe of Gaia DR2 source_ids and cross-matches them with the cross
     matching done by the Gaia collaboration between the DR2 catalog and the
@@ -47,36 +47,30 @@ def get_edr3_dr2_xmatch(datrow):
             Results from Gaia ADQL query converted to pandas dataframe.
     """
     from astroquery.gaia import Gaia 
-    # from astropy.table import Table
+    from astropy.table import Table
 
     Gaia.login(user='kjaehnig',
                 password='Legacyofash117!', verbose=True)
-
-    orig_id = str(datrow['source_id'].squeeze())
-    print(orig_id)
+    table = Table([data['GAIAEDR3_SOURCE_ID'], data['ID']],# data['bss_flag']],
+                names=['source_id','tic'])
+    # orig_id = str(datrow['source_id'].squeeze())
+    # print(orig_id)
     # table = Table([datrow['source_id']],names=['orig_id'])
-    res = Gaia.launch_job_async(query=f"select  \
+    res = Gaia.launch_job_async(query="select tbl.tic, \
             gedr3.source_id, gedr3.parallax, gedr3.parallax_error, gedr3.phot_g_mean_mag, \
             gedr3.phot_bp_mean_mag, gedr3.phot_rp_mean_mag, gedr3.nu_eff_used_in_astrometry, \
             gedr3.phot_g_mean_flux, gedr3.phot_g_mean_flux_error, \
             gedr3.phot_bp_mean_flux, gedr3.phot_bp_mean_flux_error, \
             gedr3.phot_rp_mean_flux, gedr3.phot_rp_mean_flux_error, \
             gedr3.pseudocolour, gedr3.ecl_lat, gedr3.astrometric_params_solved, \
-            dr2.source_id as dr2_id, \
             dr3_dist.r_med_geo, dr3_dist.r_lo_geo, dr3_dist.r_hi_geo, \
-            dr3_dist.r_med_photogeo, dr3_dist.r_lo_photogeo, dr3_dist.r_hi_photogeo, \
-            edr3_dr2_xm.angular_distance, edr3_dr2_xm.magnitude_difference \
+            dr3_dist.r_med_photogeo, dr3_dist.r_lo_photogeo, dr3_dist.r_hi_photogeo \
             from gaiaedr3.gaia_source as gedr3 \
-            inner join  gaiaedr3.dr2_neighbourhood as edr3_dr2_xm \
-                on gedr3.source_id = edr3_dr2_xm.dr3_source_id \
-            inner join gaiadr2.gaia_source as dr2 \
-                on edr3_dr2_xm.dr2_source_id = dr2.source_id \
+            inner join TAP_UPLOAD.mytbl as tbl \
+                on gedr3.source_id = tbl.source_id \
             inner join external.gaiaedr3_distance as dr3_dist \
-                on gedr3.source_id = dr3_dist.source_id \
-            where edr3_dr2_xm.dr2_source_id = {orig_id} AND \
-                  edr3_dr2_xm.angular_distance <= 1 AND \
-                  edr3_dr2_xm.magnitude_difference <= 0.1",)
-            # upload_resource=table, upload_table_name='table_test')
+                on gedr3.source_id = dr3_dist.source_id",
+            upload_resource=table, upload_table_name='mytbl')
     dat = res.get_results().to_pandas() 
     # dat['Cluster'] = dat.Cluster.str.decode("UTF-8")
     return dat
@@ -102,7 +96,7 @@ def get_2mass_mag_uncertainties(data):
 def generate_params_for_multinest(ticnum, return_edr3=False):
     
     ticrow = hq_joker_edr3_apogee_tess_df.loc[hq_joker_edr3_apogee_tess_df['ID'] == ticnum]
-    
+    print(ticrow.columns.values)
     tmass_errs = get_2mass_mag_uncertainties(ticrow)
     if tmass_errs.shape[0] > 0:
         assert tmass_errs.source_id.squeeze() == ticrow['source_id'].squeeze()
@@ -158,7 +152,7 @@ def generate_params_for_multinest(ticnum, return_edr3=False):
         'eBP3':(ebp3, ebp3e),
         'eRP3':(erp3, erp3e),
         'eG3':(eg3, eg3e),
-        'parallax':(plx_corr , edr3_zpt.parallax_error.squeeze()),
+        # 'parallax':(plx_corr , edr3_zpt.parallax_error.squeeze()),
     }
 
     if return_edr3:   
@@ -220,7 +214,7 @@ def calculate_only_tmag_w_G_J(params):
     return (T, Te)
 
 
-def initialize_multinest_binary_model(ticnum):
+def initialize_multinest_binary_model(ticnum, TestOnly=False):
     from isochrones.priors import GaussianPrior
     params, edr3_df = generate_params_for_multinest(ticnum, return_edr3=True)
 
@@ -235,7 +229,11 @@ def initialize_multinest_binary_model(ticnum):
 
     mist = get_ichrone('mist', bands=['J','H','K','eBP3','eRP3','eG3','TESS'])
     
-    binarymodel = BinaryStarModel(mist, **params, name=f'TIC_{ticnum}')
+    if TestOnly == False:
+        test = ''
+    else:
+        test = 't'
+    binarymodel = BinaryStarModel(mist, **params, name=f'TIC_{ticnum}{test}')
     binarymodel.mnest_basename = DD+'ceph'+binarymodel.mnest_basename[1:]
     
     # distance = 1000./params['parallax'][0]
@@ -295,7 +293,7 @@ def generate_params_for_interp(ticnum):
         'BP':(bp, ebp),
         'RP':(rp, erp),
         'G':(g, eg),
-        'parallax':(ticrow.parallax.squeeze(), ticrow.parallax_error.squeeze())
+        # 'parallax':(ticrow.parallax.squeeze(), ticrow.parallax_error.squeeze())
     }
     
     return params
@@ -315,7 +313,7 @@ def get_best_age_eep_mass_bounds(TICNUM):
     # print(tic_params['feh'])
 
     valid_ages, valid_eeps, valid_mass = [], [], []
-    for masses in tqdm(np.linspace(0.1,50,2000 ), position=0, leave='None'):
+    for masses in tqdm(np.linspace(0.1,50,100 ), position=0, leave='None'):
         for eep in eep_range:
             interp_vals = track_grid.interp([interp_params['feh'][0], masses, eep], ['age','Teff','logg'])[0]
             age, teff, logg = interp_vals[0], interp_vals[1], interp_vals[2]
@@ -334,28 +332,28 @@ def get_best_age_eep_mass_bounds(TICNUM):
 
 
 def main(index=0,
-        n_live_points=100):
+        n_live_points=100,
+        test_only=False):
 
 
     tic_systems_of_interest = [
-    28159019,
-    99254945,
-    126232983,
-    164458426,
-    164527723,
-    165453878,
-    169820068,
-    258108067,
-    271548206,
-    272074664,
-    20215452,
-    144441148,
-    365204192
+    28159019,   # 0
+    99254945,   # 1
+    126232983,  # 2
+    164458426,  # 3
+    164527723,  # 4
+    165453878,  # 5
+    169820068,  # 6
+    258108067,  # 7
+    271548206,  # 8
+    272074664,  # 9
+    20215452,   # 10
+    144441148,  # 11
+    365204192   # 12
     ]
-
     ticsystem = tic_systems_of_interest[index]
 
-    binmod = initialize_multinest_binary_model(ticsystem)
+    binmod = initialize_multinest_binary_model(ticsystem, TestOnly=test_only)
 
     # return
 
@@ -370,6 +368,7 @@ def main(index=0,
                   mass=(max(0.1, min(valid_mass)), min(10, max(valid_mass)))
                  )
     print("Starting MultiNest")
+
     binmod.fit(n_live_points=n_live_points, overwrite=True)
 
     fig = corner(az.from_dict(
@@ -409,8 +408,8 @@ result.add_option('--index', dest='index', default=0, type='int',
                 help='indice of tic system array (defaults to 0)')
 result.add_option("--n_live_points", dest='n_live_points', default=100, type='int',
                 help='number of live points to run multinest (default: 100)')
-
-
+result.add_option("--test_only", dest="test_only", default=0, type='int',
+                help='run test isochrones run with t added to output file')
 if __name__ == "__main__":
     opt,arguments = result.parse_args()
     main(**opt.__dict__)
