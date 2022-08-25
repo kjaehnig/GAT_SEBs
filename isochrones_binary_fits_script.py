@@ -313,7 +313,7 @@ def get_best_age_eep_mass_bounds(TICNUM):
     # print(tic_params['feh'])
 
     valid_ages, valid_eeps, valid_mass = [], [], []
-    for masses in tqdm(np.linspace(0.1,50,100 ), position=0, leave='None'):
+    for masses in tqdm(np.linspace(0.1,50,1000), position=0, leave='None'):
         for eep in eep_range:
             interp_vals = track_grid.interp([interp_params['feh'][0], masses, eep], ['age','Teff','logg'])[0]
             age, teff, logg = interp_vals[0], interp_vals[1], interp_vals[2]
@@ -333,7 +333,7 @@ def get_best_age_eep_mass_bounds(TICNUM):
 
 def main(index=0,
         n_live_points=100,
-        test_only=False):
+        test_only=0):
 
 
     tic_systems_of_interest = [
