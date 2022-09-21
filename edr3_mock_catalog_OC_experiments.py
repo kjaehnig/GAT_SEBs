@@ -67,7 +67,7 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx):
 
     return res
 
-def main(index, part2=0)
+def main(index, part2=0):
     if part2:
         index += 1000
     DD = hf.load_system_specific_directory()
@@ -112,13 +112,15 @@ def main(index, part2=0)
     tap_url = "http://dc.zah.uni-heidelberg.de/tap"
     tap_oc_query = f"select * \
                      FROM gedr3mock.main WHERE popid = 11  \
-                     AND parallax/parallax_error > 5 \
+                     AND parallax/parallax_error > 10 \
+                     AND d11y > 99 \
                      AND 1 = CONTAINS(POINT({RA}, {DEC})\
                          ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
 
     tap_fs_query = f"select * \
                      FROM gedr3mock.main WHERE popid != 11  \
-                     AND parallax/parallax_error > 5 \
+                     AND parallax/parallax_error > 10 \
+                     AND d11y > 99 \
                      AND 1 = CONTAINS(POINT({RA},{DEC})\
                          ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
 
@@ -380,6 +382,7 @@ def main(index, part2=0)
                     'center_':scaler.center_}
     CR['labels'] = mocklabels
     CR['confusion_matrix'] = CM 
+    CR['TnFpFnTp'] = CM.ravel()
     CR['balanced_accuracy_score'] = BAS
     CR['average_precision_score'] = APS
     CR['roc_auc_score'] = ROC_AUC
