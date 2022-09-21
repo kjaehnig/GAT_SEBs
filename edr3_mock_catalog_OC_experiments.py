@@ -19,7 +19,8 @@ import pickle as pk
 from optparse import OptionParser
 from sklearn.preprocessing import RobustScaler
 from xdgmm import XDGMM
-
+import helper_functions as hf
+import os
 # get_ipython().run_line_magic('pinfo', 'pvy.tablesearch')
 
 
@@ -41,17 +42,7 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx):
     Returns
     -------
     """
-    columns=['source_id','ra', 'ra_error',
-        'dec', 'dec_error', 'parallax', 'parallax_error',
-        'parallax_over_error', 'pmra', 'pmra_error',
-        'pmdec', 'pmdec_error','ra_dec_corr',
-        'ra_parallax_corr', 'ra_pmra_corr', 'ra_pmdec_corr',
-        'dec_parallax_corr', 'dec_pmra_corr', 'dec_pmdec_corr',
-        'parallax_pmra_corr', 'parallax_pmdec_corr',
-         'pmra_pmdec_corr','phot_g_mean_mag','bp_rp']
 
-    columns = ['gdr3.'+ii+', ' for ii in columns]
-    col_str = ''.join(columns)
 
     from astroquery.gaia import Gaia 
     from astropy.table import Table
@@ -67,26 +58,30 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx):
                 AND gdr3.parallax < {Plx + 0.75} \
                 AND gdr3.parallax > {Plx - 0.75} \
                 AND DISTANCE(gdr3.ra, gdr3.dec, {RA},{DEC}) < {R50} \
-                ORDER BY pmpmdist"
+                "
             )
 
-    dat = res.get_results().to_pandas() 
+    # dat = res.get_results().to_pandas() 
     # dat['Cluster'] = dat.Cluster.str.decode("UTF-8")
-    print(dat.dropna().shape)
+    # print(dat.dropna().shape)
 
-    return dat
+    return res
 
 def main(index):
+    DD = hf.load_system_specific_directory()
+    if not os.path.exists(DD+"failed_xdgmm_mocks"):
+        os.mkdir(DD+"failed_xdgmm_mocks/")
+
     max_rec = 20000
     # clst_name = 'NGC_7789'
-    CG2020clsts = pd.read_csv("/Users/karljaehnig/Desktop/GRAD/sc_gal_sim/GaiaDR2OpenClusters/cantat_gaudin_2020_cluster_catalog.csv")
-    CG2020membs = pd.read_csv("/Users/karljaehnig/Desktop/GRAD/sc_gal_sim/GaiaDR2OpenClusters/cantat_gaudin_2020_member_catalog.csv")
+    CG2020clsts = pd.read_csv("cantat_gaudin_2020_cluster_catalog.csv")
+    # CG2020membs = pd.read_csv("cantat_gaudin_2020_member_catalog.csv")
 
     clst_name = CG2020clsts.iloc[index]['Cluster']
 
     clstqry = CG2020clsts.loc[CG2020clsts.Cluster == clst_name]
-    membqry = CG2020membs.loc[CG2020membs.Cluster == clst_name]
-    Nmembs = membqry.loc[membqry.Proba > 0.5].shape[0]
+    # membqry = CG2020membs.loc[CG2020membs.Cluster == clst_name]
+    # Nmembs = membqry.loc[membqry.Proba > 0.5].shape[0]
     # print('CG2020 cluster membership has: ', Nmembs)
     print(clstqry[['Cluster','Rgc','N','Plx','r50']])
     # print(clstqry.T)
@@ -99,54 +94,55 @@ def main(index):
         2*clstqry.r50.squeeze(),
         clstqry.Plx.squeeze()
     )
+    columns=['source_id','ra', 'ra_error',
+        'dec', 'dec_error', 'parallax', 'parallax_error',
+        'parallax_over_error', 'pmra', 'pmra_error',
+        'pmdec', 'pmdec_error','ra_dec_corr',
+        'ra_parallax_corr', 'ra_pmra_corr', 'ra_pmdec_corr',
+        'dec_parallax_corr', 'dec_pmra_corr', 'dec_pmdec_corr',
+        'parallax_pmra_corr', 'parallax_pmdec_corr',
+         'pmra_pmdec_corr','phot_g_mean_mag','bp_rp','popid']
 
+    # columns = ['gdr3.'+ii+', ' for ii in columns]
+    columns = [ii+', ' for ii in columns[:-2]]
+    col_str = ''.join(columns)
 
     tap_url = "http://dc.zah.uni-heidelberg.de/tap"
-    tap_oc_query = f"select top {max_rec} *  \
-                        FROM gedr3mock.main WHERE popid = 11  \
-                        AND 1 = CONTAINS(POINT({RA}, {DEC})\
-                            ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
+    tap_oc_query = f"select * \
+                     FROM gedr3mock.main WHERE popid = 11  \
+                     AND parallax/parallax_error > 10 \
+                     AND ABS(parallax - {Plx}) < 2 \
+                     AND 1 = CONTAINS(POINT({RA}, {DEC})\
+                         ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
 
-    tap_fs_query = f"select top {max_rec} * \
-                        FROM gedr3mock.main WHERE popid != 11  \
-                        AND 1 = CONTAINS(POINT({RA},{DEC})\
-                            ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
-    tap_fov_query = f"select top {max_rec} * \
-                        FROM gedr3mock.main \
-                        WHERE parallax/parallax_error > 5 \
-                        AND 1 = CONTAINS(POINT({RA},{DEC})\
-                            ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
-    # In[7]:
+    tap_fs_query = f"select * \
+                     FROM gedr3mock.main WHERE popid != 11  \
+                     AND parallax/parallax_error > 10 \
+                     AND ABS(parallax - {Plx}) <  2 \
+                     AND 1 = CONTAINS(POINT({RA},{DEC})\
+                         ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
+
+    print(tap_oc_query)
     
     try: 
-        dr3_dat = get_stars_in_fov(int(max_rec/2.), RA, DEC, PMRA, PMDE, R50, Plx)
-        print('stars in dr3 FOV: ',dr3_dat.shape[0])
-
+        # dr3_dat = get_stars_in_fov(int(max_rec/2.), RA, DEC, PMRA, PMDE, R50, Plx)
+        # print('stars in dr3 FOV: ',dr3_dat.shape[0])
+        pvy_cs = pvy.tablesearch(url=tap_url, query=tap_oc_query,maxrec=max_rec)
+        pvy_fs = pvy.tablesearch(url=tap_url,query = tap_fs_query, maxrec=max_rec)
+        clsts = pvy_cs.to_table().to_pandas()
+        clsts['cluster_flag'] = np.ones(clsts.shape[0])
+        flds = pvy_fs.to_table().to_pandas()
+        flds['cluster_flag'] = np.zeros(flds.shape[0])
     except:
-        print("setting max to max_rec")
-    # try:
-    pvy_cs = pvy.tablesearch(url=tap_url, query=tap_oc_query,maxrec=max_rec)
-    pvy_fs = pvy.tablesearch(url=tap_url,query = tap_fs_query, maxrec=max_rec)
-    # pvy_fov = pvy.tablesearch(url=tap_url, query=tap_fov_query, maxrec=max_rec)
+        file = open(DD+f"failed_xdgmm_mocks/{clst_name}_FAILED_GAVO_QUERY",'wb')
+        file.close()
+        return
 
-    clsts = pvy_cs.to_table().to_pandas()
-    clsts['CLST'] = np.ones(clsts.shape[0])
-    print(max(clsts['parallax']), min(clsts['parallax']))
-    flds = pvy_fs.to_table().to_pandas()
-    flds['CLST'] = np.zeros(flds.shape[0])
-    print(max(flds['parallax']), min(flds['parallax']))
+    if clsts.shape[0] < 12:
+        file = open(DD+f"failed_xdgmm_mocks/{clst_name}_Nclst_LT12",'wb')
+        file.close()
+        return
 
-
-    # print(len(clsts),'/',max_rec, len(flds),'/',max_rec)
-    # fov_ = pvy_fov.to_table()
-    print(len(clsts), len(flds))
-    # print(sum(fov_['popid']==11), sum(fov_['popid']!=11))
-    # except:
-        # file = open(f"{clst_name}_failed_to_query_GAVO",'wb')
-        # file.close()
-        # return
-
-    # In[8]:
 
     # clsts = clsts[clsts['parallax']/clsts['parallax_error']] > 10
     # clsts = flds[flds['parallax']/flds['parallax_error']] > 10
@@ -256,68 +252,68 @@ def main(index):
         return (X_cp, C_cp)
 
 
-    usXdr3, usCdr3 = assemble_gaia_covariance_matrix(dr3_dat)
-    dr3scaler = RobustScaler().fit(usXdr3)
-    dr3scalings = dr3scaler.scale_
+    # usXdr3, usCdr3 = assemble_gaia_covariance_matrix(dr3_dat)
+    # dr3scaler = RobustScaler().fit(usXdr3)
+    # dr3scalings = dr3scaler.scale_
 
-    Xdr3 = dr3scaler.transform(usXdr3)
+    # Xdr3 = dr3scaler.transform(usXdr3)
     # Cdr3 = scale_covariance_matrices(usCdr3, dr3scalings)
-    cov_scaler = assemble_scaling_matrix(dr3scalings)
+    # cov_scaler = assemble_scaling_matrix(dr3scalings)
     
-    Cdr3 = usCdr3 / cov_scaler
+    # Cdr3 = usCdr3 / cov_scaler
 
-    pos_def = []
-    for cov in Cdr3:
-        try:
-            np.linalg.cholesky(cov)
-            pos_def.append(1)
-        except:
-            pos_def.append(0)
+    # pos_def = []
+    # for cov in Cdr3:
+    #     try:
+    #         np.linalg.cholesky(cov)
+    #         pos_def.append(1)
+    #     except:
+    #         pos_def.append(0)
 
-    print(f"there are {sum(pos_def)}/{len(pos_def)} positive-definite covariance matrices")
+    # print(f"there are {sum(pos_def)}/{len(pos_def)} positive-definite covariance matrices")
 
-    dr3mod = XDGMM(tol=1e-8,
-                method='Bovy',
-                n_iter=10**9,
-                n_components=2,
-                random_state=999,
-                w = np.min(usCdr3/cov_scaler)**2.)
-
-
-    dr3mod.fit(Xdr3, Cdr3)
-    try:
-        np.linalg.cholesky(dr3mod.V[0])
-    except:
-        print(f"component 0 is NOT PosSemiDef")
-    try:
-        np.linalg.cholesky(dr3mod.V[1])
-    except:
-        print(f"component 1 is NOT PosSemiDef")
-        return
-    compV = dr3mod.V
-    compDE = (5./2) + (5./2.)*np.log(2.*np.pi) + .5*np.log(np.linalg.det(compV))
-
-    cluster_lbl, field_lbl = np.argmin(compDE), np.argmax(compDE)
-
-    dr3proba = dr3mod.predict_proba(Xdr3, Cdr3)
-    joint_proba = dr3proba[:,cluster_lbl]# * (1 - dr3proba[:,field_lbl])
-
-    dr3labels = np.zeros_like(joint_proba)
-    dr3labels[joint_proba > 0.5] = 1.0
+    # dr3mod = XDGMM(tol=1e-8,
+    #             method='Bovy',
+    #             n_iter=10**9,
+    #             n_components=2,
+    #             random_state=999,
+    #             w = np.min(usCdr3/cov_scaler)**2.)
 
 
-    Ncluster = int(np.sum(dr3labels))
-    Nfield = int(len(dr3labels) - Ncluster)
+    # dr3mod.fit(Xdr3, Cdr3)
+    # try:
+    #     np.linalg.cholesky(dr3mod.V[0])
+    # except:
+    #     print(f"component 0 is NOT PosSemiDef")
+    # try:
+    #     np.linalg.cholesky(dr3mod.V[1])
+    # except:
+    #     print(f"component 1 is NOT PosSemiDef")
+    #     return
+    # compV = dr3mod.V
+    # compDE = (5./2) + (5./2.)*np.log(2.*np.pi) + .5*np.log(np.linalg.det(compV))
+
+    # cluster_lbl, field_lbl = np.argmin(compDE), np.argmax(compDE)
+
+    # dr3proba = dr3mod.predict_proba(Xdr3, Cdr3)
+    # joint_proba = dr3proba[:,cluster_lbl]# * (1 - dr3proba[:,field_lbl])
+
+    # dr3labels = np.zeros_like(joint_proba)
+    # dr3labels[joint_proba > 0.5] = 1.0
 
 
-    print(f"finished running XDGMM on fov for {clst_name}.")
-    print(f"XDGMM classified {Ncluster} OC stars and {Nfield} field stars")
-    print(F"starting XDGMM fit for mock catalog FOV.")
+    # Ncluster = int(np.sum(dr3labels))
+    # Nfield = int(len(dr3labels) - Ncluster)
+
+
+    # print(f"finished running XDGMM on fov for {clst_name}.")
+    # print(f"XDGMM classified {Ncluster} OC stars and {Nfield} field stars")
+    # print(F"starting XDGMM fit for mock catalog FOV.")
     ### -----------------------------------------------------------------------
 
 
 
-    fov_ = pd.concat([clsts.sample(Ncluster), flds.sample(Nfield)], ignore_index=True)
+    fov_ = pd.concat([clsts, flds], ignore_index=True)
 
     X,C = assemble_gaia_covariance_matrix(fov_)
     usXcp,usCcp = bootstrap_synthetic_covariance_matrix(X,C)
@@ -337,15 +333,20 @@ def main(index):
                 n_components=2, 
                 random_state=666,
                 w=np.min(Ccp)**2.)
+    try:
+        xdmod.fit(Xcp, Ccp)
 
-    xdmod.fit(Xcp, Ccp)
+        compV = xdmod.V
+        compDE = (5./2) + (5./2.)*np.log(2.*np.pi) + .5*np.log(np.linalg.det(compV))
 
-    compV = xdmod.V
-    compDE = (5./2) + (5./2.)*np.log(2.*np.pi) + .5*np.log(np.linalg.det(compV))
+        cluster_lbl, field_lbl = np.argmin(compDE), np.argmax(compDE)
 
-    cluster_lbl, field_lbl = np.argmin(compDE), np.argmax(compDE)
+        proba = xdmod.predict_proba(Xcp, Ccp)
+    except:
+        file = open(f"failed_xdgmm_mocks/{clst_name}_XDGMM_FAILED",'wb')
+        file.close()
+        return
 
-    proba = xdmod.predict_proba(Xcp, Ccp)
     joint_proba = proba[:,cluster_lbl]# * (1 - proba[:,field_lbl])
         # file = open(f"{clst_name}_xdgmm_failed",'wb')
         # file.close()
@@ -359,29 +360,30 @@ def main(index):
     # lbl_act[labels==clst] = 1
     # lbl_act[labels!=clst] = 0
     print(Counter(mocklabels))
-    BAS = skl.metrics.balanced_accuracy_score(fov_['CLST'], mocklabels)
+    BAS = skl.metrics.balanced_accuracy_score(fov_['cluster_flag'], mocklabels)
 
-    APS = skl.metrics.average_precision_score(fov_['CLST'], mocklabels,
+    APS = skl.metrics.average_precision_score(fov_['cluster_flag'], mocklabels,
             average='weighted')
     
-    CM = skl.metrics.confusion_matrix(fov_['CLST'],mocklabels)
+    CM = skl.metrics.confusion_matrix(fov_['cluster_flag'],mocklabels)
 
-    CR = skl.metrics.classification_report(fov_['CLST'],mocklabels,
+    CR = skl.metrics.classification_report(fov_['cluster_flag'],mocklabels,
             output_dict=True,target_names=['field','cluster'])
 
-    ROC_AUC = skl.metrics.roc_auc_score(fov_['CLST'],mocklabels,
+    ROC_AUC = skl.metrics.roc_auc_score(fov_['cluster_flag'],mocklabels,
                 average='weighted')
 
     CR['Cluster'] = clst_name
-    CR['truths'] = fov_['CLST']
+    CR['mock_fov'] = fov_
     CR['labels'] = mocklabels
     CR['confusion_matrix'] = CM 
     CR['balanced_accuracy_score'] = BAS
     CR['average_precision_score'] = APS
     CR['roc_auc_score'] = ROC_AUC
     # return precision_recall_fscore_support
-
-    file = open(f"xdgmm_performance_dicts/{clst_name}_xdgmm_performance_dict.pk",'wb')
+    if not os.path.exists(DD+"xdgmm_performance_dicts"):
+        os.mkdir(DD+"xdgmm_performance_dicts")
+    file = open(DD+f"xdgmm_performance_dicts/{clst_name}_xdgmm_performance_dict.pk",'wb')
     pk.dump(CR, file)
     file.close()
 # cluster_xdgmm_performance = {'clsts':[],
