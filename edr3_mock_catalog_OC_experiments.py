@@ -67,7 +67,9 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx):
 
     return res
 
-def main(index):
+def main(index, part2=0)
+    if part2:
+        index += 1000
     DD = hf.load_system_specific_directory()
     if not os.path.exists(DD+"failed_xdgmm_mocks"):
         os.mkdir(DD+"failed_xdgmm_mocks/")
@@ -111,14 +113,12 @@ def main(index):
     tap_oc_query = f"select * \
                      FROM gedr3mock.main WHERE popid = 11  \
                      AND parallax/parallax_error > 5 \
-                     AND ABS(parallax - {Plx}) < 2 \
                      AND 1 = CONTAINS(POINT({RA}, {DEC})\
                          ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
 
     tap_fs_query = f"select * \
                      FROM gedr3mock.main WHERE popid != 11  \
                      AND parallax/parallax_error > 5 \
-                     AND ABS(parallax - {Plx}) <  2 \
                      AND 1 = CONTAINS(POINT({RA},{DEC})\
                          ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
 
@@ -412,7 +412,8 @@ def main(index):
 result = OptionParser()
 result.add_option('-i', dest='index', default=0, type='int', 
                 help='indice of cluster to fit from CG2020')
-
+result.add_option('--p2',dest='part2',default=0, type='int',
+                help='arg to increased indices wo angering slurm')
 if __name__ == "__main__":
     opt,arguments = result.parse_args()
     main(**opt.__dict__)
