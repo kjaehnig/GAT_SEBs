@@ -110,14 +110,14 @@ def main(index):
     tap_url = "http://dc.zah.uni-heidelberg.de/tap"
     tap_oc_query = f"select * \
                      FROM gedr3mock.main WHERE popid = 11  \
-                     AND parallax/parallax_error > 10 \
+                     AND parallax/parallax_error > 5 \
                      AND ABS(parallax - {Plx}) < 2 \
                      AND 1 = CONTAINS(POINT({RA}, {DEC})\
                          ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
 
     tap_fs_query = f"select * \
                      FROM gedr3mock.main WHERE popid != 11  \
-                     AND parallax/parallax_error > 10 \
+                     AND parallax/parallax_error > 5 \
                      AND ABS(parallax - {Plx}) <  2 \
                      AND 1 = CONTAINS(POINT({RA},{DEC})\
                          ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
@@ -138,8 +138,8 @@ def main(index):
         file.close()
         return
 
-    if clsts.shape[0] < 12:
-        file = open(DD+f"failed_xdgmm_mocks/{clst_name}_Nclst_LT12",'wb')
+    if clsts.shape[0] < 6:
+        file = open(DD+f"failed_xdgmm_mocks/{clst_name}_Nclst_LT6",'wb')
         file.close()
         return
 
@@ -241,12 +241,12 @@ def main(index):
     # In[16]:
 
     from tqdm import tqdm
-    def bootstrap_synthetic_covariance_matrix(X,C):
+    def bootstrap_synthetic_covariance_matrix(X,C,N):
         
         X_cp = np.zeros_like(X)
         C_cp = np.zeros_like(C)
         for i_s in tqdm(range(X.shape[0])):
-            synth_draws = np.random.multivariate_normal(mean=X[i_s], cov=C[i_s], size=1000)
+            synth_draws = np.random.multivariate_normal(mean=X[i_s], cov=C[i_s], size=N)
             X_cp[i_s] = synth_draws.mean(axis=0)
             C_cp[i_s,:,:] = np.cov(synth_draws.T) 
         return (X_cp, C_cp)
@@ -316,7 +316,7 @@ def main(index):
     fov_ = pd.concat([clsts, flds], ignore_index=True)
 
     X,C = assemble_gaia_covariance_matrix(fov_)
-    usXcp,usCcp = bootstrap_synthetic_covariance_matrix(X,C)
+    usXcp,usCcp = bootstrap_synthetic_covariance_matrix(X,C,10000)
 
     scaler = RobustScaler().fit(usXcp)
     scalings_ = scaler.scale_
@@ -327,7 +327,7 @@ def main(index):
     
     Ccp = usCcp / cov_scaler
     
-    xdmod = XDGMM(tol=1e-8, 
+    xdmod = XDGMM(tol=1e-10, 
                 method='Bovy', 
                 n_iter=10**9, 
                 n_components=2, 
@@ -375,6 +375,9 @@ def main(index):
 
     CR['Cluster'] = clst_name
     CR['mock_fov'] = fov_
+    CR['scaler'] = {'type':'Robust',
+                    'scale_':scalings_,
+                    'center_':scaler.center_}
     CR['labels'] = mocklabels
     CR['confusion_matrix'] = CM 
     CR['balanced_accuracy_score'] = BAS
