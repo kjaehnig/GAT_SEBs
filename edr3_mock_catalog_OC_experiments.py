@@ -103,7 +103,7 @@ def main(index, part2=0):
         'ra_parallax_corr', 'ra_pmra_corr', 'ra_pmdec_corr',
         'dec_parallax_corr', 'dec_pmra_corr', 'dec_pmdec_corr',
         'parallax_pmra_corr', 'parallax_pmdec_corr',
-         'pmra_pmdec_corr','phot_g_mean_mag','bp_rp','popid']
+         'pmra_pmdec_corr','phot_g_mean_mag','bp_rp','popid','d11y']
 
     # columns = ['gdr3.'+ii+', ' for ii in columns]
     columns = [ii+', ' for ii in columns[:-2]]
@@ -112,30 +112,36 @@ def main(index, part2=0):
     tap_url = "http://dc.zah.uni-heidelberg.de/tap"
     tap_oc_query = f"select * \
                      FROM gedr3mock.main WHERE popid = 11  \
-                     AND parallax/parallax_error > 10 \
+                     AND parallax/parallax_error > 5 \
                      AND d11y > 99 \
                      AND 1 = CONTAINS(POINT({RA}, {DEC})\
                          ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
 
     tap_fs_query = f"select * \
                      FROM gedr3mock.main WHERE popid != 11  \
-                     AND parallax/parallax_error > 10 \
+                     AND parallax/parallax_error > 5 \
                      AND d11y > 99 \
                      AND 1 = CONTAINS(POINT({RA},{DEC})\
                          ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
 
     print(tap_oc_query)
     
-    try: 
+    failed_tries = 0
+    query_attempts = 10
+    for ntry in range(query_attempts):
+        try: 
         # dr3_dat = get_stars_in_fov(int(max_rec/2.), RA, DEC, PMRA, PMDE, R50, Plx)
         # print('stars in dr3 FOV: ',dr3_dat.shape[0])
-        pvy_cs = pvy.tablesearch(url=tap_url, query=tap_oc_query,maxrec=max_rec)
-        pvy_fs = pvy.tablesearch(url=tap_url,query = tap_fs_query, maxrec=max_rec)
-        clsts = pvy_cs.to_table().to_pandas()
-        clsts['cluster_flag'] = np.ones(clsts.shape[0])
-        flds = pvy_fs.to_table().to_pandas()
-        flds['cluster_flag'] = np.zeros(flds.shape[0])
-    except:
+            pvy_cs = pvy.tablesearch(url=tap_url, query=tap_oc_query, maxrec=max_rec)
+            pvy_fs = pvy.tablesearch(url=tap_url, query=tap_fs_query, maxrec=max_rec)
+            clsts = pvy_cs.to_table().to_pandas()
+            clsts['cluster_flag'] = np.ones(clsts.shape[0])
+            flds = pvy_fs.to_table().to_pandas()
+            flds['cluster_flag'] = np.zeros(flds.shape[0])
+        except:
+            failed_tries += 1
+
+    if failed_tries == query_attempts:
         file = open(DD+f"failed_xdgmm_mocks/{clst_name}_FAILED_GAVO_QUERY",'wb')
         file.close()
         return
