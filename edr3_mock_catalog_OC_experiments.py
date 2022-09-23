@@ -130,11 +130,12 @@ def main(index, part2=0):
     failed_tries = 0
     query_attempts = 10
     Nfov_dr3 = None
-#     try:
-#         Nfov_dr3 = get_stars_in_fov(int(max_rec), RA, DEC, PMRA, PMDE, R50, Plx)
-# # print('stars in dr3 FOV: ',dr3_dat.shape[0])
-#     except:
-#         print("dr3 query failed or timed out")
+    try:
+        print("querying DR3 for Nstars in FOV")
+        Nfov_dr3 = get_stars_in_fov(int(max_rec), RA, DEC, PMRA, PMDE, R50, Plx)
+# print('stars in dr3 FOV: ',dr3_dat.shape[0])
+    except:
+        print("dr3 query failed or timed out")
     for ntry in range(query_attempts):
         try: 
 
