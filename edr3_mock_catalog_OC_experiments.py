@@ -155,7 +155,7 @@ def main(index, part2=0):
 
     # clsts = clsts[clsts['parallax']/clsts['parallax_error']] > 10
     # clsts = flds[flds['parallax']/flds['parallax_error']] > 10
-    def add_obs_err_to_mock(clstdat,plx_factor=1.1):
+    def add_obs_err_to_mock(clstdat,plx_factor=1.3):
         clst = clstdat.copy()
         
         columns = [
@@ -320,11 +320,15 @@ def main(index, part2=0):
     # print(F"starting XDGMM fit for mock catalog FOV.")
     ### -----------------------------------------------------------------------
 
+    print("Inflating plx_error to better approximate Gaia DR3")
+    clsts = add_obs_err_to_mock(clsts)
     if clsts.shape[0] > clstqry.N.squeeze():
         print("Down-sampling mock cluster")
         clsts = clsts.sample(clstqry.N.squeeze())
     print("N mock cluster stars:  ",clsts.shape[0])
     print("N mock field stars:    ",flds.shape[0])
+
+
     fov_ = pd.concat([clsts, flds], ignore_index=True)
 
     X,C = assemble_gaia_covariance_matrix(fov_)
