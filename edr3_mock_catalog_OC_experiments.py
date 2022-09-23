@@ -52,22 +52,23 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx):
 
 
     res = Gaia.launch_job_async(query=f"select TOP {maxN} {col_str} \
-                SQRT(POWER(gdr3.pmra - {PMRA},2) + POWER(gdr3.pmdec - {PMDE},2)) as pmpmdist \
                 FROM gaiadr3.gaia_source as gdr3 \
                 WHERE gdr3.parallax_over_error > 5 \
-                AND gdr3.parallax < {Plx + 0.75} \
-                AND gdr3.parallax > {Plx - 0.75} \
+                AND gdr3.parallax < {Plx + 1} \
+                AND gdr3.parallax > {Plx - 1} \
                 AND DISTANCE(gdr3.ra, gdr3.dec, {RA},{DEC}) < {R50} \
                 "
             )
+                # SQRT(POWER(gdr3.pmra - {PMRA},2) + POWER(gdr3.pmdec - {PMDE},2)) as pmpmdist \
 
-    # dat = res.get_results().to_pandas() 
+    dat = res.get_results().to_pandas() 
     # dat['Cluster'] = dat.Cluster.str.decode("UTF-8")
     # print(dat.dropna().shape)
 
-    return res
+    return dat
 
 def main(index, part2=0):
+    print(skl.__version__)
     if part2:
         index += 1000
     DD = hf.load_system_specific_directory()
