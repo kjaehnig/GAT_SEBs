@@ -51,8 +51,8 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx):
                 password='Legacyofash117!', verbose=True)
 
 
-    res = Gaia.launch_job_async(query=f"select TOP {maxN} {col_str} \
-                FROM gaiadr3.gaia_source as gdr3 \
+    res = Gaia.launch_job_async(query=f"select TOP {maxN} gdr3.source_id \
+                FROM gaiadr3.gaia_source_lite as gdr3 \
                 WHERE gdr3.parallax_over_error > 5 \
                 AND gdr3.parallax < {Plx + 1} \
                 AND gdr3.parallax > {Plx - 1} \
@@ -65,7 +65,7 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx):
     # dat['Cluster'] = dat.Cluster.str.decode("UTF-8")
     # print(dat.dropna().shape)
 
-    return dat
+    return dat.shape[0]
 
 def main(index, part2=0):
     print(skl.__version__)
@@ -129,16 +129,23 @@ def main(index, part2=0):
     
     failed_tries = 0
     query_attempts = 10
+    Nfov_dr3 = None
+#     try:
+#         Nfov_dr3 = get_stars_in_fov(int(max_rec), RA, DEC, PMRA, PMDE, R50, Plx)
+# # print('stars in dr3 FOV: ',dr3_dat.shape[0])
+#     except:
+#         print("dr3 query failed or timed out")
     for ntry in range(query_attempts):
         try: 
-        # dr3_dat = get_stars_in_fov(int(max_rec/2.), RA, DEC, PMRA, PMDE, R50, Plx)
-        # print('stars in dr3 FOV: ',dr3_dat.shape[0])
+
             pvy_cs = pvy.tablesearch(url=tap_url, query=tap_oc_query, maxrec=max_rec)
             pvy_fs = pvy.tablesearch(url=tap_url, query=tap_fs_query, maxrec=max_rec)
             clsts = pvy_cs.to_table().to_pandas()
             clsts['cluster_flag'] = np.ones(clsts.shape[0])
             flds = pvy_fs.to_table().to_pandas()
             flds['cluster_flag'] = np.zeros(flds.shape[0])
+            print(f"Successful query after {failed_tries} failures")
+            break
         except:
             failed_tries += 1
 
@@ -320,14 +327,20 @@ def main(index, part2=0):
     # print(F"starting XDGMM fit for mock catalog FOV.")
     ### -----------------------------------------------------------------------
 
-    print("Inflating plx_error to better approximate Gaia DR3")
-    clsts = add_obs_err_to_mock(clsts)
+    # print("Inflating plx_error to better approximate Gaia DR3")
+    #clsts = add_obs_err_to_mock(clsts)
     if clsts.shape[0] > clstqry.N.squeeze():
         print("Down-sampling mock cluster")
         clsts = clsts.sample(clstqry.N.squeeze())
+    if (flds.shape[0] > 5000) & (Nfov_dr3 is not None):
+        print("Down-sampling mock field FOV using DR3 FOV")
+        flds = flds.sample(Nfov_dr3)
+    elif Nfov_dr3 is not None:
+        print("Down-sampling mock field FOV to 5000 stars")
+        flds = flds.sample(5000)
+
     print("N mock cluster stars:  ",clsts.shape[0])
     print("N mock field stars:    ",flds.shape[0])
-
 
     fov_ = pd.concat([clsts, flds], ignore_index=True)
 
@@ -349,15 +362,51 @@ def main(index, part2=0):
                 n_components=2, 
                 random_state=666,
                 w=np.min(Ccp)**2.)
+
+
     try:
+        bics, opt_Nc, min_bic = xdmod.bic_test(
+                                        Xcp, Ccp,
+                                        param_range=np.arange(0,9)+2,
+                                        no_err = False
+                                    )
+        print(f"best model (acc. to BIC) is: {opt_Nc}")
+    except:
+        print("Model failed during XDGMM BIC test")
+
+    try:
+        xdmod = XDGMM(tol=1e-10, 
+                method='Bovy', 
+                n_iter=10**9, 
+                n_components=opt_Nc, 
+                random_state=666,
+                w=np.min(Ccp)**2.)
         xdmod.fit(Xcp, Ccp)
-
-        compV = xdmod.V
-        compDE = (5./2) + (5./2.)*np.log(2.*np.pi) + .5*np.log(np.linalg.det(compV))
-
-        cluster_lbl, field_lbl = np.argmin(compDE), np.argmax(compDE)
-
         proba = xdmod.predict_proba(Xcp, Ccp)
+        per_component_labels = proba.argmax(axis=1)
+
+        def compute_diff_entp(V):
+            DE =((V.shape[0]/2) 
+                + (V.shape[0]/2.)*np.log(2.*np.pi) 
+                + .5*np.log(np.linalg.det(V))
+                )
+            return DE
+
+        N_per_comp = np.array([sum(per_component_labels==ii) for ii in np.arange(opt_Nc)])
+        DEs = np.array([compute_diff_entp(Vi) for Vi in xdmod.V])
+
+        if opt_Nc > 2:
+            min_DE = np.inf
+            for i_c in range(opt_Nc):
+                if (DEs[i_c] < min_DE) & (N_per_comp[i_c] > 6):
+                    min_DE = i_c
+            print(f"Component w/ min(DE) is comp-{min_DE} out of {sum(N_per_comp > 6)} possible cluster components")
+            cluster_lbl = min_DE
+        else:
+            cluster_lbl = np.argmin(DEs)
+
+        #cluster_lbl, field_lbl = np.argmin(compDE), np.argmax(compDE)
+
     except:
         file = open(f"failed_xdgmm_mocks/{clst_name}_XDGMM_FAILED",'wb')
         file.close()
@@ -394,6 +443,9 @@ def main(index, part2=0):
     CR['scaler'] = {'type':'Robust',
                     'scale_':scalings_,
                     'center_':scaler.center_}
+    if opt_Nc > 2:
+        CR['best_modelcomp'] = str(opt_Nc).zfill(2)+str(cluster_lbl).zfill(2)
+        print(CR['best_modelcomp'])
     CR['labels'] = mocklabels
     CR['confusion_matrix'] = CM 
     CR['TnFpFnTp'] = CM.ravel()
