@@ -319,7 +319,8 @@ def main(index, part2=0):
     # print(F"starting XDGMM fit for mock catalog FOV.")
     ### -----------------------------------------------------------------------
 
-
+    if clsts.shape[0] > clstqry.N.squeeze():
+        clsts = clsts.sample(clstqry.N.squeeze())
 
     fov_ = pd.concat([clsts, flds], ignore_index=True)
 
