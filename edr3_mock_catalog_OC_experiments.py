@@ -327,15 +327,16 @@ def main(index, part2=0):
     # print(F"starting XDGMM fit for mock catalog FOV.")
     ### -----------------------------------------------------------------------
 
-    # print("Inflating plx_error to better approximate Gaia DR3")
-    #clsts = add_obs_err_to_mock(clsts)
+    print("Inflating plx_error to better approximate Gaia DR3")
+    clsts = add_obs_err_to_mock(clsts)
     if clsts.shape[0] > clstqry.N.squeeze():
         print("Down-sampling mock cluster")
         clsts = clsts.sample(clstqry.N.squeeze())
-    if (flds.shape[0] > 5000) & (Nfov_dr3 is not None):
-        print("Down-sampling mock field FOV using DR3 FOV")
-        flds = flds.sample(Nfov_dr3)
-    elif Nfov_dr3 is not None:
+    if Nfov_dr3 is not None:
+        if flds.shape[0] > Nfov_dr3.shape[0]:
+            print("Down-sampling mock field FOV using DR3 FOV")
+            flds = flds.sample(Nfov_dr3)
+    elif flds.shape[0] > 5000:
         print("Down-sampling mock field FOV to 5000 stars")
         flds = flds.sample(5000)
 
@@ -363,7 +364,8 @@ def main(index, part2=0):
                 random_state=666,
                 w=np.min(Ccp)**2.)
 
-
+    bic_test_failure_flag = 1
+    opt_Nc = 2
     try:
         bics, opt_Nc, min_bic = xdmod.bic_test(
                                         Xcp, Ccp,
@@ -371,9 +373,10 @@ def main(index, part2=0):
                                         no_err = False
                                     )
         print(f"best model (acc. to BIC) is: {opt_Nc}")
+        bic_test_failure_flag = 0
+        opt_Nc = 2
     except:
         print("Model failed during XDGMM BIC test")
-
     try:
         xdmod = XDGMM(tol=1e-10, 
                 method='Bovy', 
@@ -443,9 +446,10 @@ def main(index, part2=0):
     CR['scaler'] = {'type':'Robust',
                     'scale_':scalings_,
                     'center_':scaler.center_}
-    if opt_Nc > 2:
-        CR['best_modelcomp'] = str(opt_Nc).zfill(2)+str(cluster_lbl).zfill(2)
-        print(CR['best_modelcomp'])
+    
+    CR['best_modelcomp'] = str(opt_Nc).zfill(2)+str(cluster_lbl).zfill(2)
+    CR['bic_test_failure_flag'] = bic_test_failure_flag
+
     CR['labels'] = mocklabels
     CR['confusion_matrix'] = CM 
     CR['TnFpFnTp'] = CM.ravel()
