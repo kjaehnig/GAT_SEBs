@@ -335,7 +335,7 @@ def main(index, part2=0):
         print("Down-sampling mock cluster")
         clsts = clsts.sample(clstqry.N.squeeze())
     if Nfov_dr3 is not None:
-        if flds.shape[0] > Nfov_dr3.shape[0]:
+        if flds.shape[0] > Nfov_dr3:
             print("Down-sampling mock field FOV using DR3 FOV")
             flds = flds.sample(Nfov_dr3)
     elif flds.shape[0] > 5000:
