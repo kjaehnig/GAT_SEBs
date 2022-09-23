@@ -60,8 +60,9 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx):
                 "
             )
                 # SQRT(POWER(gdr3.pmra - {PMRA},2) + POWER(gdr3.pmdec - {PMDE},2)) as pmpmdist \
-
+    this_jobs_id = res.jobid
     dat = res.get_results().to_pandas() 
+    Gaia.remove_jobs(this_jobs_id)
     # dat['Cluster'] = dat.Cluster.str.decode("UTF-8")
     # print(dat.dropna().shape)
 
