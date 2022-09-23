@@ -374,9 +374,9 @@ def main(index, part2=0):
                                     )
         print(f"best model (acc. to BIC) is: {opt_Nc}")
         bic_test_failure_flag = 0
-        opt_Nc = 2
     except:
         print("Model failed during XDGMM BIC test")
+        print(f"Setting Model N_c to default {opt_Nc}")
     try:
         xdmod = XDGMM(tol=1e-10, 
                 method='Bovy', 
