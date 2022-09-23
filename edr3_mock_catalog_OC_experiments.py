@@ -125,7 +125,7 @@ def main(index, part2=0):
                      AND 1 = CONTAINS(POINT({RA},{DEC})\
                          ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
 
-    print(tap_oc_query)
+    # print(tap_oc_query)
     
     failed_tries = 0
     query_attempts = 10
@@ -321,6 +321,7 @@ def main(index, part2=0):
     ### -----------------------------------------------------------------------
 
     if clsts.shape[0] > clstqry.N.squeeze():
+        print("Down-sampling mock cluster")
         clsts = clsts.sample(clstqry.N.squeeze())
 
     fov_ = pd.concat([clsts, flds], ignore_index=True)
