@@ -323,7 +323,8 @@ def main(index, part2=0):
     if clsts.shape[0] > clstqry.N.squeeze():
         print("Down-sampling mock cluster")
         clsts = clsts.sample(clstqry.N.squeeze())
-
+    print("N mock cluster stars:  ",clsts.shape[0])
+    print("N mock field stars:    ",flds.shape[0])
     fov_ = pd.concat([clsts, flds], ignore_index=True)
 
     X,C = assemble_gaia_covariance_matrix(fov_)
