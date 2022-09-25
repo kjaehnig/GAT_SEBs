@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from astroquery.utils.tap.core import TapPlus
 from collections import Counter
 from scipy.stats import epps_singleton_2samp as es2
+import scipy
 import sklearn as skl
 from tqdm import tqdm
 import pickle as pk
@@ -21,15 +22,298 @@ from sklearn.preprocessing import RobustScaler
 from xdgmm import XDGMM
 import helper_functions as hf
 import os
+from astropy import units as u
 # get_ipython().run_line_magic('pinfo', 'pvy.tablesearch')
 
+def add_obs_err_to_mock(clstdat,plx_factor=1.3):
+    clst = clstdat.copy()
+    
+    columns = [
+     'ra','dec',
+        'pmra','pmdec',
+        'parallax'
+    ]
+    
+    for col in columns:
+        tru_col,tru_col_err = clst[col],clst[col+'_error']
+        
+        if col=='parallax':
+            tru_col_err = 10**((np.log10(tru_col_err) + 1)*plx_factor)
+            
+        obs_col = np.random.normal(loc=tru_col,
+                                   scale=tru_col_err,
+                                   size=(1000,tru_col.shape[0])
+                                  )
+        clst[col+'_error'] = obs_col.std(axis=0)
+        clst[col] = obs_col.mean(axis=0)
+        
+    return clst
+
+columns = [
+    'ra',
+    'dec',
+    'parallax',
+    'pmra',
+    'pmdec',
+]
+
+error_columns = [
+    'ra_error',
+    'dec_error',
+    'parallax_error',
+    'pmra_error',
+    'pmdec_error',
+]
+
+corr_map = {
+    'ra_dec_corr': [0, 1],
+    'ra_parallax_corr': [0, 2],
+    'ra_pmra_corr': [0, 3],
+    'ra_pmdec_corr': [0, 4],
+    'dec_parallax_corr': [1, 2],
+    'dec_pmra_corr': [1, 3],
+    'dec_pmdec_corr': [1, 4],
+    'parallax_pmra_corr': [2, 3],
+    'parallax_pmdec_corr': [2, 4],
+    'pmra_pmdec_corr': [3, 4]
+}
+
+
+def assemble_gaia_covariance_matrix(df):
+    X = df[columns].fillna(0.0).values
+    C = np.zeros((len(df), 5, 5))
+    diag = np.arange(5)
+    C[:, diag, diag] = df[error_columns].fillna(1e6).values
+
+    for column, (i, j) in corr_map.items():
+        C[:, i, j] = df[column].fillna(0).values
+        C[:, i, j] *= (C[:, i, i] * C[:, j, j])
+        C[:, j, i] = C[:, i, j]
+
+    C[:, diag, diag] = C[:, diag, diag]**2
+
+    return X, C
+
+
+def scale_covariance_matrices(cov_arr, scalings):
+    diag = np.arange(5)
+    C = cov_arr.copy()
+
+    for col, (i,j) in corr_map.items():
+        C[:, i, j] /= abs((scalings[i]*scalings[j]))
+
+    C[:, diag, diag] /= scalings**2.
+
+    return C
+
+
+def assemble_scaling_matrix(scalings):
+    diag = np.arange(5)
+    C = np.zeros((len(scalings),len(scalings)))
+    C[diag,diag] = scalings
+    for column, (i, j) in corr_map.items():
+        C[i, j] = (C[i, i] * C[j, j])
+        C[j, i] = C[i, j]
+
+    C[diag,diag] = C[diag,diag]**2.
+
+    return C
+# In[16]:
+
+from tqdm import tqdm
+def bootstrap_synthetic_covariance_matrix(X,C,N):
+    
+    X_cp = np.zeros_like(X)
+    C_cp = np.zeros_like(C)
+    for i_s in tqdm(range(X.shape[0])):
+        synth_draws = np.random.multivariate_normal(mean=X[i_s], cov=C[i_s], size=N)
+        X_cp[i_s] = synth_draws.mean(axis=0)
+        C_cp[i_s,:,:] = np.cov(synth_draws.T) 
+    return (X_cp, C_cp)
 
 # In[5]:
 
+def resample_from_onsky_pts(random_pts=None,number=10):
+    random_indices = np.random.choice(len(random_pts[0]),size=number,replace=False)
+    return (random_pts[0][random_indices],random_pts[1][random_indices])
 
 # print(CG2020clsts.sort_values('N',ascending=False).head())
+def weighted_MAD(x,w):
+    """ Takes a variable and its weights to calculate the weighted absolute
+    median deviation as a replacement for the standard deviation.
+    Parameters
+    ----------
+        x : array
+            Variable of interest
+        w : array
+            Weights associated with variable of interest.
+    Returns
+    -------
+        weightedMAD : float
+            The weighted median absolute deviation of the variable of
+            interest.
+    """
+    import weighted
+    center_median = weighted.median(x,w)
+    rescaled_x = abs(x-center_median)
+    weightedMAD = weighted.median(rescaled_x, w)
+    return weightedMAD
 
 
+from astropy.coordinates import SkyCoord
+def get_random_onsky_pts(FOV_DAT=None,size=100):
+    allpos = SkyCoord(ra=FOV_DAT.ra, 
+                    dec=FOV_DAT.dec,
+                    unit=u.deg,
+                    frame='icrs')
+
+    clstcntr = SkyCoord(ra=FOV_DAT.ra.median(),
+                        dec=FOV_DAT.dec.median(),
+                        unit=u.deg,
+                        frame='icrs')
+
+    radLOS = clstcntr.separation(allpos).to(u.deg).value.max()
+
+    #random_pts = sample_uniform_sphere_centered(clstpos, 
+    #                                        RADIUS=radLOS,
+    #                                        encompass_circle=True,
+    #                                       size=size)
+    uni_ra = np.random.uniform(low=FOV_DAT.ra.min(),
+                                high=FOV_DAT.ra.max(),
+                                size=size*2)
+    uni_dec = np.random.uniform(low=FOV_DAT.dec.min(),
+                                high=FOV_DAT.dec.max(),
+                                size=size*2)
+
+    rndmpos = SkyCoord(ra=uni_ra,
+                        dec=uni_dec,
+                        unit=u.deg,
+                        frame='icrs')
+    rndmFOVpos = clstcntr.separation(rndmpos).to(u.deg).value
+    return (uni_ra[rndmFOVpos <= radLOS],
+                uni_dec[rndmFOVpos <= radLOS])
+
+
+def get_mad_sigmaclip_params(cdata):
+    """ Takes a cluster member stars dataframe and calculates the weighted 
+    median absolute deviation and the associated weighted uncertainty for
+    [ra, dec, parallax, pmra, pmdec] using the module 'weighted'.
+    
+    Parameters
+    ---------- 
+        cdata : pandas dataframe
+            Star cluster member stars individual measurements
+    Returns
+    -------
+    """
+    import weighted
+
+    params = ['ra','dec','parallax','pmra','pmdec']
+    initial_samp = cdata#.loc[cdata.xdg_proba>=0.85]
+
+    weighted_median_res = []
+    weighted_MAD_res = []
+
+    for cols in params:
+        cdata_col = initial_samp[cols]
+        cdata_ecol = initial_samp[cols+'_error']
+        initial_median = weighted.median(cdata_col,1./cdata_ecol)
+        initial_mad = weighted_MAD(cdata_col,1./cdata_ecol)
+        #print(initial_median, initial_mad)
+        MAD3 = 1.4826 * initial_mad * 3.
+
+        truncated_samp = initial_samp.loc[
+                            cdata_col <= initial_median +  MAD3].loc[
+                            cdata_col >= initial_median - MAD3]
+
+        final_median = weighted.median(truncated_samp[cols],
+                                    1./truncated_samp[cols+'_error'])
+        final_MAD = weighted_MAD(truncated_samp[cols],
+                            1./truncated_samp[cols+'_error'])
+
+        weighted_median_res.append(final_median)
+        weighted_MAD_res.append(final_MAD * 1.4826)
+    return weighted_median_res, weighted_MAD_res
+
+
+def compute_proper_motion_dispersion_check(cls_dat):
+
+    params_mean,params_sig = get_mad_sigmaclip_params(cls_dat)
+    med_plx = params_mean[2]    
+
+    cand_spmpm = np.sqrt(params_sig[3]**2 + 
+                        params_sig[4]**2)
+
+    if med_plx <= 1.0:
+        spmpm_lim = 1.0
+    if med_plx > 1.0:
+        spmpm_lim = 5.*np.sqrt(2)*(med_plx/4.74) # emperical limit from CG asterism paper
+
+    if cand_spmpm < spmpm_lim:
+        return  1
+
+    if cand_spmpm > spmpm_lim:
+        return 0
+
+
+def get_mst_branch_sums(pts):
+    import sklearn
+    alpha = pts[0]
+    delta = pts[1]
+    coords = np.array([delta,alpha]).T
+    assert coords.shape[0] == len(alpha)
+    distmatr = sklearn.metrics.pairwise.haversine_distances(
+                                        np.deg2rad(coords))
+    csgraph = scipy.sparse.csc_matrix(distmatr)
+    mintree = scipy.sparse.csgraph.minimum_spanning_tree(csgraph)
+    sum_branch_lengths = np.sum(mintree.todense().flatten())
+    return sum_branch_lengths
+
+
+def check_cluster_spatial_proper_motion_spread(cls_dat):
+
+    spmpm_check = compute_proper_motion_dispersion_check(cls_dat)
+
+    asmr_check = run_mst_asmr_check(cls_dat)
+
+    print(asmr_check, spmpm_check)
+    if asmr_check & spmpm_check:
+        return 1
+    else:
+        return 0
+
+
+def run_mst_asmr_check(cls_dat):
+    rndm_pts = get_random_onsky_pts(cls_dat, size=10000)
+
+    cand_ra,cand_de = cls_dat[['ra','dec']].values.T
+
+    cand_lobs = get_mst_branch_sums((cand_ra,
+                                    cand_de))
+
+    l,sigl = get_avg_mst_branch_lengths(
+                    rndm_pts,
+                    size=cand_ra.shape[0],
+                    niter=2000)
+    
+    asmr = (l-cand_lobs)/sigl
+
+    if asmr > 1:
+        return 1
+    if asmr < 1:
+        return 0
+
+
+def get_avg_mst_branch_lengths(pts=None,size=10,niter=10):
+    #sampled_pts = resample_from_onsky_pts(pts,number=size)
+    
+    mst_res = np.zeros(niter)
+    for ii in tqdm(range(niter),position=3,leave=None):
+        sampled_pts = resample_from_onsky_pts(pts,number=size)
+        sum_branches = get_mst_branch_sums(sampled_pts)
+        mst_res[ii] = sum_branches   
+    #print('\033[1A')    
+    return np.mean(mst_res), np.std(mst_res)
 
 
 def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx):
@@ -67,6 +351,7 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx):
     # print(dat.dropna().shape)
 
     return dat.shape[0]
+
 
 def main(index, part2=0):
     print(skl.__version__)
@@ -112,17 +397,17 @@ def main(index, part2=0):
     col_str = ''.join(columns)
 
     tap_url = "http://dc.zah.uni-heidelberg.de/tap"
-    tap_oc_query = f"select * \
+    tap_oc_query = f"select  * \
                      FROM gedr3mock.main WHERE popid = 11  \
-                     AND parallax/parallax_error > 5 \
                      AND d11y > 99 \
+                     AND ABS(parallax - {Plx}) < 1 \
                      AND 1 = CONTAINS(POINT({RA}, {DEC})\
                          ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
 
     tap_fs_query = f"select * \
                      FROM gedr3mock.main WHERE popid != 11  \
-                     AND parallax/parallax_error > 5 \
                      AND d11y > 99 \
+                     AND ABS(parallax - {Plx}) < 1 \
                      AND 1 = CONTAINS(POINT({RA},{DEC})\
                          ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
 
@@ -134,8 +419,8 @@ def main(index, part2=0):
     try:
         print("querying DR3 for Nstars in FOV")
         Nfov_dr3 = get_stars_in_fov(int(max_rec), RA, DEC, PMRA, PMDE, R50, Plx)
-# print('stars in dr3 FOV: ',dr3_dat.shape[0])
-    except:
+# # print('stars in dr3 FOV: ',dr3_dat.shape[0])
+#     except:
         print("dr3 query failed or timed out")
     for ntry in range(query_attempts):
         try: 
@@ -164,110 +449,7 @@ def main(index, part2=0):
 
     # clsts = clsts[clsts['parallax']/clsts['parallax_error']] > 10
     # clsts = flds[flds['parallax']/flds['parallax_error']] > 10
-    def add_obs_err_to_mock(clstdat,plx_factor=1.3):
-        clst = clstdat.copy()
-        
-        columns = [
-         'ra','dec',
-            'pmra','pmdec',
-            'parallax'
-        ]
-        
-        for col in columns:
-            tru_col,tru_col_err = clst[col],clst[col+'_error']
-            
-            if col=='parallax':
-                tru_col_err = 10**((np.log10(tru_col_err) + 1)*plx_factor)
-                
-            obs_col = np.random.normal(loc=tru_col,
-                                       scale=tru_col_err,
-                                       size=(1000,tru_col.shape[0])
-                                      )
-            clst[col+'_error'] = obs_col.std(axis=0)
-            clst[col] = obs_col.mean(axis=0)
-            
-        return clst
 
-    columns = [
-        'ra',
-        'dec',
-        'parallax',
-        'pmra',
-        'pmdec',
-    ]
-
-    error_columns = [
-        'ra_error',
-        'dec_error',
-        'parallax_error',
-        'pmra_error',
-        'pmdec_error',
-    ]
-
-    corr_map = {
-        'ra_dec_corr': [0, 1],
-        'ra_parallax_corr': [0, 2],
-        'ra_pmra_corr': [0, 3],
-        'ra_pmdec_corr': [0, 4],
-        'dec_parallax_corr': [1, 2],
-        'dec_pmra_corr': [1, 3],
-        'dec_pmdec_corr': [1, 4],
-        'parallax_pmra_corr': [2, 3],
-        'parallax_pmdec_corr': [2, 4],
-        'pmra_pmdec_corr': [3, 4]
-    }
-
-
-    def assemble_gaia_covariance_matrix(df):
-        X = df[columns].fillna(0.0).values
-        C = np.zeros((len(df), 5, 5))
-        diag = np.arange(5)
-        C[:, diag, diag] = df[error_columns].fillna(1e6).values
-
-        for column, (i, j) in corr_map.items():
-            C[:, i, j] = df[column].fillna(0).values
-            C[:, i, j] *= (C[:, i, i] * C[:, j, j])
-            C[:, j, i] = C[:, i, j]
-
-        C[:, diag, diag] = C[:, diag, diag]**2
-
-        return X, C
-
-
-    def scale_covariance_matrices(cov_arr, scalings):
-        diag = np.arange(5)
-        C = cov_arr.copy()
-
-        for col, (i,j) in corr_map.items():
-            C[:, i, j] /= abs((scalings[i]*scalings[j]))
-
-        C[:, diag, diag] /= scalings**2.
-
-        return C
-
-    def assemble_scaling_matrix(scalings):
-        diag = np.arange(5)
-        C = np.zeros((len(scalings),len(scalings)))
-        C[diag,diag] = scalings
-        for column, (i, j) in corr_map.items():
-            C[i, j] = (C[i, i] * C[j, j])
-            C[j, i] = C[i, j]
-
-        C[diag,diag] = C[diag,diag]**2.
-
-        return C
-    # In[16]:
-
-    from tqdm import tqdm
-    def bootstrap_synthetic_covariance_matrix(X,C,N):
-        
-        X_cp = np.zeros_like(X)
-        C_cp = np.zeros_like(C)
-        for i_s in tqdm(range(X.shape[0])):
-            synth_draws = np.random.multivariate_normal(mean=X[i_s], cov=C[i_s], size=N)
-            X_cp[i_s] = synth_draws.mean(axis=0)
-            C_cp[i_s,:,:] = np.cov(synth_draws.T) 
-        return (X_cp, C_cp)
 
 
     # usXdr3, usCdr3 = assemble_gaia_covariance_matrix(dr3_dat)
@@ -397,19 +579,29 @@ def main(index, part2=0):
                 )
             return DE
 
-        N_per_comp = np.array([sum(per_component_labels==ii) for ii in np.arange(opt_Nc)])
+        # N_per_comp = np.array([sum(per_component_labels==ii) for ii in np.arange(opt_Nc)])
         DEs = np.array([compute_diff_entp(Vi) for Vi in xdmod.V])
 
-        if opt_Nc > 2:
-            min_DE = np.inf
-            for i_c in range(opt_Nc):
-                if (DEs[i_c] < min_DE) & (N_per_comp[i_c] > 6):
-                    min_DE = i_c
-            print(f"Component w/ min(DE) is comp-{min_DE} out of {sum(N_per_comp > 6)} possible cluster components")
-            cluster_lbl = min_DE
-        else:
-            cluster_lbl = np.argmin(DEs)
 
+        min_DE = np.inf
+        for i_c in range(opt_Nc):
+            cand_probs = proba[:,i_c]
+
+            memb_mask = cand_probs > 0.5
+            cand_dat = fov_[memb_mask]
+            print(sum(memb_mask))
+            isnt_asterism = check_cluster_spatial_proper_motion_spread(cand_dat)
+
+            if (DEs[i_c] < min_DE) & isnt_asterism & sum(memb_mask) >= 6:
+                print(f"comp-{i_c} might be a cluster")
+                min_DE = i_c
+        print(f"Component most likely to be cluster is comp-{min_DE}")
+        cluster_lbl = min_DE
+
+        if cluster_lbl == np.inf:
+            file = open(f"failed_xdgmm_mocks/{clst_name}_XDGMM_FOUND_NO_OCs",'wb')
+            file.close()
+            return
         #cluster_lbl, field_lbl = np.argmin(compDE), np.argmax(compDE)
 
     except:
@@ -499,6 +691,9 @@ if __name__ == "__main__":
 
 
 # In[ ]:
+
+
+
 
 
 
