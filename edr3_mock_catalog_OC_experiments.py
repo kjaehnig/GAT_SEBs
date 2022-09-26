@@ -380,7 +380,7 @@ def main(index, part2=0):
         clstqry.DE_ICRS.squeeze(),
         clstqry.pmRA.squeeze(),
         clstqry.pmDE.squeeze(),
-        2*clstqry.r50.squeeze(),
+        3*clstqry.r50.squeeze(),
         clstqry.Plx.squeeze()
     )
     columns=['source_id','ra', 'ra_error',
@@ -520,9 +520,10 @@ def main(index, part2=0):
         if flds.shape[0] > Nfov_dr3:
             print("Down-sampling mock field FOV using DR3 FOV")
             flds = flds.sample(Nfov_dr3)
-    elif flds.shape[0] > 5000:
-        print("Down-sampling mock field FOV to 5000 stars")
-        flds = flds.sample(5000)
+    if Nfov_dr3 is None:
+        if flds.shape[0] > 5000:
+            print("Down-sampling mock field FOV to 5000 stars")
+            flds = flds.sample(5000)
 
     print("N mock cluster stars:  ",clsts.shape[0])
     print("N mock field stars:    ",flds.shape[0])
@@ -568,8 +569,11 @@ def main(index, part2=0):
                 n_components=opt_Nc, 
                 random_state=666,
                 w=np.min(Ccp)**2.)
-        xdmod.fit(Xcp, Ccp)
+
+        xdmod.fit(Xcp, np.zeros_like(Ccp))
+        
         proba = xdmod.predict_proba(Xcp, Ccp)
+        
         per_component_labels = proba.argmax(axis=1)
 
         def compute_diff_entp(V):
@@ -589,7 +593,6 @@ def main(index, part2=0):
 
             memb_mask = cand_probs > 0.5
             cand_dat = fov_[memb_mask]
-            print(sum(memb_mask))
             isnt_asterism = check_cluster_spatial_proper_motion_spread(cand_dat)
 
             if (DEs[i_c] < min_DE) & isnt_asterism & sum(memb_mask) >= 6:
