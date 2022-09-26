@@ -529,6 +529,7 @@ def main(index, part2=0):
     print("N mock field stars:    ",flds.shape[0])
 
     fov_ = pd.concat([clsts, flds], ignore_index=True)
+    fov_ = fov_.sort_values('logg')
 
     X,C = assemble_gaia_covariance_matrix(fov_)
     usXcp,usCcp = bootstrap_synthetic_covariance_matrix(X,C,10000)
@@ -570,7 +571,7 @@ def main(index, part2=0):
                 random_state=666,
                 w=np.min(Ccp)**2.)
 
-        xdmod.fit(Xcp, np.zeros_like(Ccp))
+        xdmod.fit(Xcp, Ccp)
         
         proba = xdmod.predict_proba(Xcp, Ccp)
         
