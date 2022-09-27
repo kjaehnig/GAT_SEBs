@@ -524,10 +524,10 @@ def main(index, part2=0):
     if (Nfov_dr3 is None):
         if (flds.shape[0] > 5000) & (clstqry.N.squeeze() < 1000):
             print("Down-sampling mock field FOV to 2500 stars")
-            flds = flds.sample(2500)
+            flds = flds.sample(5000)
 
 
-    Nflds_still_too_large = flds.shape[0] > 2500
+    Nflds_still_too_large = flds.shape[0] > 5000
     if Nflds_still_too_large:
         flds = flds.sample(2500)
 
