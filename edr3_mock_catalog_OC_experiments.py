@@ -510,19 +510,19 @@ def main(index, part2=0):
     # print(F"starting XDGMM fit for mock catalog FOV.")
     ### -----------------------------------------------------------------------
 
-    print("Inflating plx_error to better approximate Gaia DR3")
-    clsts = add_obs_err_to_mock(clsts)
+    # print("Inflating plx_error to better approximate Gaia DR3")
+    # clsts = add_obs_err_to_mock(clsts)
     if clsts.shape[0] > clstqry.N.squeeze():
         print("Down-sampling mock cluster")
         clsts = clsts.sample(clstqry.N.squeeze())
-    if Nfov_dr3 is not None:
+    if (Nfov_dr3 is not None) & (Nfov_dr3 < max_rec):
         if flds.shape[0] > Nfov_dr3:
             print("Down-sampling mock field FOV using DR3 FOV")
             flds = flds.sample(Nfov_dr3)
-    if Nfov_dr3 is None:
-        if flds.shape[0] > 5000:
+    if (Nfov_dr3 is None) | (Nfov_dr3 > max_rec):
+        if (flds.shape[0] > 5000) & (clstqry.N.squeeze() < 1000):
             print("Down-sampling mock field FOV to 5000 stars")
-            flds = flds.sample(5000)
+            flds = flds.sample(2500)
 
     print("N mock cluster stars:  ",clsts.shape[0])
     print("N mock field stars:    ",flds.shape[0])
@@ -542,7 +542,9 @@ def main(index, part2=0):
     
     Ccp = usCcp / cov_scaler
     
-    xdmod = XDGMM(tol=1e-6, 
+    print("Starting XDGMM run.")
+
+    xdmod = XDGMM(tol=1e-7, 
                 method='Bovy', 
                 n_iter=10**9, 
                 n_components=2, 
@@ -550,7 +552,7 @@ def main(index, part2=0):
                 w=1e-8)
 
     bic_test_failure_flag = 1
-    opt_Nc = 4
+    opt_Nc = 3
     try:
         bics, opt_Nc, min_bic = xdmod.bic_test(
                                         Xcp, Ccp,
@@ -563,7 +565,7 @@ def main(index, part2=0):
         print("Model failed during XDGMM BIC test")
         print(f"Setting Model N_c to default {opt_Nc}")
     try:
-        xdmod = XDGMM(tol=1e-6, 
+        xdmod = XDGMM(tol=1e-7, 
                 method='Bovy', 
                 n_iter=10**9, 
                 n_components=opt_Nc, 
@@ -594,7 +596,7 @@ def main(index, part2=0):
 
             memb_mask = cand_probs > 0.5
             cand_dat = fov_[memb_mask]
-            # isnt_asterism = check_cluster_spatial_proper_motion_spread(cand_dat)
+            isnt_asterism = check_cluster_spatial_proper_motion_spread(cand_dat)
             lit_param = np.array([RA,DEC,Plx,PMRA,PMDE]).reshape(1,-1)
             lra,ldec,lplx,lpmra,lpmde = scaler.transform(lit_param).squeeze()
 
@@ -606,7 +608,7 @@ def main(index, part2=0):
             suff_memb = sum(memb_mask) > 6
             closer_cntr = cand_delpm2 < min_delpm2
             print(i_c, sum(memb_mask),lesser_de, suff_memb, closer_cntr)
-            if lesser_de & suff_memb & closer_cntr:
+            if lesser_de & suff_memb & isnt_asterism:
                 print(f"comp-{i_c} might be a cluster")
                 min_DE = DEs[i_c]
                 best_comp = i_c
