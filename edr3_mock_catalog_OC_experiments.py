@@ -419,19 +419,18 @@ def main(index, part2=0):
     try:
         print("querying DR3 for Nstars in FOV")
         Nfov_dr3 = get_stars_in_fov(int(max_rec), RA, DEC, PMRA, PMDE, R50, Plx)
-# # print('stars in dr3 FOV: ',dr3_dat.shape[0])
-#     except:
+    except:
         print("dr3 query failed or timed out")
+
     for ntry in range(query_attempts):
         try: 
-
             pvy_cs = pvy.tablesearch(url=tap_url, query=tap_oc_query, maxrec=max_rec)
             pvy_fs = pvy.tablesearch(url=tap_url, query=tap_fs_query, maxrec=max_rec)
             clsts = pvy_cs.to_table().to_pandas()
             clsts['cluster_flag'] = np.ones(clsts.shape[0])
             flds = pvy_fs.to_table().to_pandas()
             flds['cluster_flag'] = np.zeros(flds.shape[0])
-            print(f"Successful query after {failed_tries} failures")
+            print(f"Successful mock-catalog query after {failed_tries} failures")
             break
         except:
             failed_tries += 1
@@ -543,15 +542,15 @@ def main(index, part2=0):
     
     Ccp = usCcp / cov_scaler
     
-    xdmod = XDGMM(tol=1e-10, 
+    xdmod = XDGMM(tol=1e-6, 
                 method='Bovy', 
                 n_iter=10**9, 
                 n_components=2, 
                 random_state=666,
-                w=np.min(Ccp)**2.)
+                w=1e-8)
 
     bic_test_failure_flag = 1
-    opt_Nc = 2
+    opt_Nc = 4
     try:
         bics, opt_Nc, min_bic = xdmod.bic_test(
                                         Xcp, Ccp,
@@ -564,12 +563,12 @@ def main(index, part2=0):
         print("Model failed during XDGMM BIC test")
         print(f"Setting Model N_c to default {opt_Nc}")
     try:
-        xdmod = XDGMM(tol=1e-10, 
+        xdmod = XDGMM(tol=1e-6, 
                 method='Bovy', 
                 n_iter=10**9, 
                 n_components=opt_Nc, 
                 random_state=666,
-                w=np.min(Ccp)**2.)
+                w=1e-8)
 
         xdmod.fit(Xcp, Ccp)
         
@@ -587,20 +586,33 @@ def main(index, part2=0):
         # N_per_comp = np.array([sum(per_component_labels==ii) for ii in np.arange(opt_Nc)])
         DEs = np.array([compute_diff_entp(Vi) for Vi in xdmod.V])
 
-
+        best_comp = np.inf
         min_DE = np.inf
+        min_delpm2 = np.inf
         for i_c in range(opt_Nc):
             cand_probs = proba[:,i_c]
 
             memb_mask = cand_probs > 0.5
             cand_dat = fov_[memb_mask]
-            isnt_asterism = check_cluster_spatial_proper_motion_spread(cand_dat)
+            # isnt_asterism = check_cluster_spatial_proper_motion_spread(cand_dat)
+            lit_param = np.array([RA,DEC,Plx,PMRA,PMDE]).reshape(1,-1)
+            lra,ldec,lplx,lpmra,lpmde = scaler.transform(lit_param).squeeze()
 
-            if (DEs[i_c] < min_DE) & isnt_asterism & sum(memb_mask) >= 6:
+            cparam,_ = get_mad_sigmaclip_params(cand_dat)
+
+            cand_delpm2 = np.sqrt( (lpmra - cparam[3])**2 + (lpmde - cparam[4])**2 )
+
+            lesser_de = DEs[i_c] < min_DE
+            suff_memb = sum(memb_mask) > 6
+            closer_cntr = cand_delpm2 < min_delpm2
+            print(i_c, sum(memb_mask),lesser_de, suff_memb, closer_cntr)
+            if lesser_de & suff_memb & closer_cntr:
                 print(f"comp-{i_c} might be a cluster")
-                min_DE = i_c
-        print(f"Component most likely to be cluster is comp-{min_DE}")
-        cluster_lbl = min_DE
+                min_DE = DEs[i_c]
+                best_comp = i_c
+                min_delpm2 = cand_delpm2
+        print(f"Component most likely to be cluster is comp-{best_comp}")
+        cluster_lbl = best_comp
 
         if cluster_lbl == np.inf:
             file = open(f"failed_xdgmm_mocks/{clst_name}_XDGMM_FOUND_NO_OCs",'wb')
