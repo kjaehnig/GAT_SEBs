@@ -79,11 +79,12 @@ corr_map = {
 }
 
 
-def assemble_gaia_covariance_matrix(df):
+def assemble_gaia_covariance_matrix(df, scalings=None):
     X = df[columns].fillna(0.0).values
     C = np.zeros((len(df), 5, 5))
     diag = np.arange(5)
-    C[:, diag, diag] = df[error_columns].fillna(1e6).values
+    if scalings is None: scalings = np.ones_like(df[error_columns].values)
+    C[:, diag, diag] = df[error_columns].fillna(1e6).values/scalings
 
     for column, (i, j) in corr_map.items():
         C[:, i, j] = df[column].fillna(0).values
@@ -276,7 +277,6 @@ def check_cluster_spatial_proper_motion_spread(cls_dat):
 
     asmr_check = run_mst_asmr_check(cls_dat)
 
-    print(asmr_check, spmpm_check)
     if asmr_check & spmpm_check:
         return 1
     else:
@@ -316,7 +316,7 @@ def get_avg_mst_branch_lengths(pts=None,size=10,niter=10):
     return np.mean(mst_res), np.std(mst_res)
 
 
-def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx):
+def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx, return_dat=False):
     """ 
     I would inner join to gaiadr3.astrophysical_parameters
     left outer join to gaiadr3.nss_two_body_orbit
@@ -326,7 +326,18 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx):
     Returns
     -------
     """
+    columns=['source_id','ra', 'ra_error',
+        'dec', 'dec_error', 'parallax', 'parallax_error',
+        'parallax_over_error', 'pmra', 'pmra_error',
+        'pmdec', 'pmdec_error','ra_dec_corr',
+        'ra_parallax_corr', 'ra_pmra_corr', 'ra_pmdec_corr',
+        'dec_parallax_corr', 'dec_pmra_corr', 'dec_pmdec_corr',
+        'parallax_pmra_corr', 'parallax_pmdec_corr',
+         'pmra_pmdec_corr','phot_g_mean_mag','bp_rp']
 
+    # columns = ['gdr3.'+ii+', ' for ii in columns]
+    columns = ['gdr3.'+ii+', ' for ii in columns]
+    col_str = ''.join(columns)
 
     from astroquery.gaia import Gaia 
     from astropy.table import Table
@@ -335,7 +346,7 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx):
                 password='Legacyofash117!', verbose=True)
 
 
-    res = Gaia.launch_job_async(query=f"select TOP {maxN} gdr3.source_id \
+    res = Gaia.launch_job_async(query=f"select TOP {maxN} gdr3.source_id\
                 FROM gaiadr3.gaia_source_lite as gdr3 \
                 WHERE gdr3.parallax_over_error > 5 \
                 AND gdr3.parallax < {Plx + 1} \
@@ -349,8 +360,10 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx):
     Gaia.remove_jobs(this_jobs_id)
     # dat['Cluster'] = dat.Cluster.str.decode("UTF-8")
     # print(dat.dropna().shape)
-
-    return dat.shape[0]
+    if return_dat:
+        return dat
+    else:
+        return dat.shape[0]
 
 
 def main(index, part2=0):
@@ -383,18 +396,7 @@ def main(index, part2=0):
         3*clstqry.r50.squeeze(),
         clstqry.Plx.squeeze()
     )
-    columns=['source_id','ra', 'ra_error',
-        'dec', 'dec_error', 'parallax', 'parallax_error',
-        'parallax_over_error', 'pmra', 'pmra_error',
-        'pmdec', 'pmdec_error','ra_dec_corr',
-        'ra_parallax_corr', 'ra_pmra_corr', 'ra_pmdec_corr',
-        'dec_parallax_corr', 'dec_pmra_corr', 'dec_pmdec_corr',
-        'parallax_pmra_corr', 'parallax_pmdec_corr',
-         'pmra_pmdec_corr','phot_g_mean_mag','bp_rp','popid','d11y']
 
-    # columns = ['gdr3.'+ii+', ' for ii in columns]
-    columns = [ii+', ' for ii in columns[:-2]]
-    col_str = ''.join(columns)
 
     tap_url = "http://dc.zah.uni-heidelberg.de/tap"
     tap_oc_query = f"select  * \
@@ -418,10 +420,10 @@ def main(index, part2=0):
     Nfov_dr3 = None
     try:
         print("querying DR3 for Nstars in FOV")
-        Nfov_dr3 = get_stars_in_fov(int(max_rec), RA, DEC, PMRA, PMDE, R50, Plx)
+        Nfov_dr3 = get_stars_in_fov(int(max_rec/2), RA, DEC, PMRA, PMDE, R50, Plx, return_dat=False)
     except:
         print("dr3 query failed or timed out")
-
+        Nfov_dr3 = None
     for ntry in range(query_attempts):
         try: 
             pvy_cs = pvy.tablesearch(url=tap_url, query=tap_oc_query, maxrec=max_rec)
@@ -515,14 +517,19 @@ def main(index, part2=0):
     if clsts.shape[0] > clstqry.N.squeeze():
         print("Down-sampling mock cluster")
         clsts = clsts.sample(clstqry.N.squeeze())
-    if (Nfov_dr3 is not None) & (Nfov_dr3 < max_rec):
-        if flds.shape[0] > Nfov_dr3:
+    if (Nfov_dr3 is not None):
+        if (flds.shape[0] > Nfov_dr3) & (Nfov_dr3 < int(max_rec/2.)):
             print("Down-sampling mock field FOV using DR3 FOV")
             flds = flds.sample(Nfov_dr3)
-    if (Nfov_dr3 is None) | (Nfov_dr3 > max_rec):
+    if (Nfov_dr3 is None):
         if (flds.shape[0] > 5000) & (clstqry.N.squeeze() < 1000):
-            print("Down-sampling mock field FOV to 5000 stars")
+            print("Down-sampling mock field FOV to 2500 stars")
             flds = flds.sample(2500)
+
+
+    Nflds_still_too_large = flds.shape[0] > 2500
+    if Nflds_still_too_large:
+        flds = flds.sample(2500)
 
     print("N mock cluster stars:  ",clsts.shape[0])
     print("N mock field stars:    ",flds.shape[0])
@@ -530,8 +537,13 @@ def main(index, part2=0):
     fov_ = pd.concat([clsts, flds], ignore_index=True)
     fov_ = fov_.sort_values('logg')
 
+    fov_obs = fov_.copy()
+
     X,C = assemble_gaia_covariance_matrix(fov_)
     usXcp,usCcp = bootstrap_synthetic_covariance_matrix(X,C,10000)
+
+    for ii,col in enumerate(columns):
+        fov_obs[col] = usXcp[:,ii]        ##### USE THIS FOV FILE TO COMPARE OBS TO MODEL
 
     scaler = RobustScaler().fit(usXcp)
     scalings_ = scaler.scale_
@@ -544,15 +556,15 @@ def main(index, part2=0):
     
     print("Starting XDGMM run.")
 
-    xdmod = XDGMM(tol=1e-7, 
+    xdmod = XDGMM(tol=1e-8, 
                 method='Bovy', 
                 n_iter=10**9, 
                 n_components=2, 
                 random_state=666,
-                w=1e-8)
+                w=1e-10)
 
     bic_test_failure_flag = 1
-    opt_Nc = 3
+    opt_Nc = 4
     try:
         bics, opt_Nc, min_bic = xdmod.bic_test(
                                         Xcp, Ccp,
@@ -565,12 +577,12 @@ def main(index, part2=0):
         print("Model failed during XDGMM BIC test")
         print(f"Setting Model N_c to default {opt_Nc}")
     try:
-        xdmod = XDGMM(tol=1e-7, 
+        xdmod = XDGMM(tol=1e-8, 
                 method='Bovy', 
                 n_iter=10**9, 
                 n_components=opt_Nc, 
                 random_state=666,
-                w=1e-8)
+                w=1e-10)
 
         xdmod.fit(Xcp, Ccp)
         
@@ -585,34 +597,40 @@ def main(index, part2=0):
                 )
             return DE
 
-        # N_per_comp = np.array([sum(per_component_labels==ii) for ii in np.arange(opt_Nc)])
+        N_per_comp = np.array([sum(per_component_labels==ii) for ii in np.arange(opt_Nc)])
+        sorted_by_Ncomp = np.argsort(N_per_comp)[::-1]
+
         DEs = np.array([compute_diff_entp(Vi) for Vi in xdmod.V])
 
         best_comp = np.inf
         min_DE = np.inf
         min_delpm2 = np.inf
-        for i_c in range(opt_Nc):
+        for i_c in sorted_by_Ncomp:
             cand_probs = proba[:,i_c]
 
             memb_mask = cand_probs > 0.5
-            cand_dat = fov_[memb_mask]
+            cand_dat = fov_obs[memb_mask]
+            
+            print(sum(memb_mask))
             isnt_asterism = check_cluster_spatial_proper_motion_spread(cand_dat)
-            lit_param = np.array([RA,DEC,Plx,PMRA,PMDE]).reshape(1,-1)
-            lra,ldec,lplx,lpmra,lpmde = scaler.transform(lit_param).squeeze()
+            # lit_param = np.array([RA,DEC,Plx,PMRA,PMDE]).reshape(1,-1)
+            # lra,ldec,lplx,lpmra,lpmde = scaler.transform(lit_param).squeeze()
 
             cparam,_ = get_mad_sigmaclip_params(cand_dat)
 
-            cand_delpm2 = np.sqrt( (lpmra - cparam[3])**2 + (lpmde - cparam[4])**2 )
+            # cand_delpm2 = np.sqrt( (lpmra - cparam[3])**2 + (lpmde - cparam[4])**2 )
 
             lesser_de = DEs[i_c] < min_DE
             suff_memb = sum(memb_mask) > 6
-            closer_cntr = cand_delpm2 < min_delpm2
-            print(i_c, sum(memb_mask),lesser_de, suff_memb, closer_cntr)
+            # closer_cntr = cand_delpm2 < min_delpm2
+            
+            print(i_c, sum(memb_mask),lesser_de, suff_memb, isnt_asterism)
+
             if lesser_de & suff_memb & isnt_asterism:
                 print(f"comp-{i_c} might be a cluster")
                 min_DE = DEs[i_c]
                 best_comp = i_c
-                min_delpm2 = cand_delpm2
+                # min_delpm2 = cand_delpm2
         print(f"Component most likely to be cluster is comp-{best_comp}")
         cluster_lbl = best_comp
 
