@@ -29,10 +29,13 @@ def add_obs_err_to_mock(clstdat,plx_factor=1.3):
     clst = clstdat.copy()
     
     columns = [
-     'ra','dec',
-        'pmra','pmdec',
-        'parallax'
+        'ra',
+        'dec',
+        'parallax',
+        'pmra',
+        'pmdec',
     ]
+
     
     for col in columns:
         tru_col,tru_col_err = clst[col],clst[col+'_error']
@@ -327,7 +330,7 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx, return_dat=False):
     Returns
     -------
     """
-    columns=['source_id','ra', 'ra_error',
+    qry_cols=['source_id','ra', 'ra_error',
         'dec', 'dec_error', 'parallax', 'parallax_error',
         'parallax_over_error', 'pmra', 'pmra_error',
         'pmdec', 'pmdec_error','ra_dec_corr',
@@ -337,8 +340,8 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx, return_dat=False):
          'pmra_pmdec_corr','phot_g_mean_mag','bp_rp']
 
     # columns = ['gdr3.'+ii+', ' for ii in columns]
-    columns = ['gdr3.'+ii+', ' for ii in columns]
-    col_str = ''.join(columns)
+    qry_col_str = ['gdr3.'+ii+', ' for ii in qry_cols]
+    qry_col_str = ''.join(qry_col_str)
 
     from astroquery.gaia import Gaia 
     from astropy.table import Table
@@ -408,7 +411,7 @@ def main(index,
         clstqry.Plx.squeeze()
     )
 
-    columns=['source_id','ra', 'ra_error',
+    qry_cols=['source_id','ra', 'ra_error',
         'dec', 'dec_error', 'parallax', 'parallax_error',
         'pmra', 'pmra_error',
         'pmdec', 'pmdec_error','ra_dec_corr',
@@ -417,7 +420,7 @@ def main(index,
         'parallax_pmra_corr', 'parallax_pmdec_corr',
          'pmra_pmdec_corr','phot_g_mean_mag','bp_rp']
 
-    qry_cols = [ii+', ' for ii in columns]
+    qry_cols = [ii+', ' for ii in qry_cols]
 
     qry_col_str = ''.join(qry_cols)
 
@@ -425,9 +428,8 @@ def main(index,
     tap_oc_query = f"SELECT *  \
                     FROM gedr3mock.main \
                     WHERE popid = 11  \
-                    AND ABS(parallax - {Plx}) < 1 \
-                    AND distance({RA}, {DEC}, ra, dec) < {R50} \
-                    ORDER BY pm_total"
+                    AND ABS(parallax - {Plx}) < 2 \
+                    AND distance({RA}, {DEC}, ra, dec) < {R50}"
 
     tap_fs_query = f"select * \
                      FROM gedr3mock.main WHERE popid != 11  \
