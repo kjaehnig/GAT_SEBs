@@ -138,6 +138,7 @@ def resample_from_onsky_pts(random_pts=None,number=10):
     random_indices = np.random.choice(len(random_pts[0]),size=number,replace=False)
     return (random_pts[0][random_indices],random_pts[1][random_indices])
 
+
 # print(CG2020clsts.sort_values('N',ascending=False).head())
 def weighted_MAD(x,w):
     """ Takes a variable and its weights to calculate the weighted absolute
@@ -271,11 +272,11 @@ def get_mst_branch_sums(pts):
     return sum_branch_lengths
 
 
-def check_cluster_spatial_proper_motion_spread(cls_dat):
+def check_cluster_spatial_proper_motion_spread(cls_dat,fov_dat):
 
     spmpm_check = compute_proper_motion_dispersion_check(cls_dat)
 
-    asmr_check = run_mst_asmr_check(cls_dat)
+    asmr_check = run_mst_asmr_check(cls_dat, fov_dat)
 
     if asmr_check & spmpm_check:
         return 1
@@ -283,8 +284,8 @@ def check_cluster_spatial_proper_motion_spread(cls_dat):
         return 0
 
 
-def run_mst_asmr_check(cls_dat):
-    rndm_pts = get_random_onsky_pts(cls_dat, size=10000)
+def run_mst_asmr_check(cls_dat, fov_dat):
+    rndm_pts = get_random_onsky_pts(fov_dat, size=10000)
 
     cand_ra,cand_de = cls_dat[['ra','dec']].values.T
 
@@ -294,7 +295,7 @@ def run_mst_asmr_check(cls_dat):
     l,sigl = get_avg_mst_branch_lengths(
                     rndm_pts,
                     size=cand_ra.shape[0],
-                    niter=2000)
+                    niter=500)
     
     asmr = (l-cand_lobs)/sigl
 
@@ -366,7 +367,17 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx, return_dat=False):
         return dat.shape[0]
 
 
-def main(index, part2=0):
+def main(index, 
+        part2=0,
+        testrun=1):
+
+    if testrun:
+        print("Running in test mode.")
+        tol_val, regularization_val = 1e-6, 1e-8
+    else:
+        print("Running in production mode.")
+        tol_val, regularization_val = 1e-8, 1e-10
+
     print(skl.__version__)
     if part2:
         index += 1000
@@ -393,23 +404,34 @@ def main(index, part2=0):
         clstqry.DE_ICRS.squeeze(),
         clstqry.pmRA.squeeze(),
         clstqry.pmDE.squeeze(),
-        3*clstqry.r50.squeeze(),
+        5*clstqry.r50.squeeze(),
         clstqry.Plx.squeeze()
     )
 
+    columns=['source_id','ra', 'ra_error',
+        'dec', 'dec_error', 'parallax', 'parallax_error',
+        'pmra', 'pmra_error',
+        'pmdec', 'pmdec_error','ra_dec_corr',
+        'ra_parallax_corr', 'ra_pmra_corr', 'ra_pmdec_corr',
+        'dec_parallax_corr', 'dec_pmra_corr', 'dec_pmdec_corr',
+        'parallax_pmra_corr', 'parallax_pmdec_corr',
+         'pmra_pmdec_corr','phot_g_mean_mag','bp_rp']
+
+    qry_cols = [ii+', ' for ii in columns]
+
+    qry_col_str = ''.join(qry_cols)
 
     tap_url = "http://dc.zah.uni-heidelberg.de/tap"
-    tap_oc_query = f"select  * \
-                     FROM gedr3mock.main WHERE popid = 11  \
-                     AND d11y > 99 \
-                     AND ABS(parallax - {Plx}) < 1 \
-                     AND 1 = CONTAINS(POINT({RA}, {DEC})\
-                         ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
+    tap_oc_query = f"SELECT *  \
+                    FROM gedr3mock.main \
+                    WHERE popid = 11  \
+                    AND ABS(parallax - {Plx}) < 1 \
+                    AND distance({RA}, {DEC}, ra, dec) < {R50} \
+                    ORDER BY pm_total"
 
     tap_fs_query = f"select * \
                      FROM gedr3mock.main WHERE popid != 11  \
                      AND d11y > 99 \
-                     AND ABS(parallax - {Plx}) < 1 \
                      AND 1 = CONTAINS(POINT({RA},{DEC})\
                          ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
 
@@ -442,8 +464,8 @@ def main(index, part2=0):
         file.close()
         return
 
-    if clsts.shape[0] < 6:
-        file = open(DD+f"failed_xdgmm_mocks/{clst_name}_Nclst_LT6",'wb')
+    if clsts.shape[0] < 12:
+        file = open(DD+f"failed_xdgmm_mocks/{clst_name}_Nclst_LT12",'wb')
         file.close()
         return
 
@@ -522,12 +544,12 @@ def main(index, part2=0):
             print("Down-sampling mock field FOV using DR3 FOV")
             flds = flds.sample(Nfov_dr3)
     if (Nfov_dr3 is None):
-        if (flds.shape[0] > 5000) & (clstqry.N.squeeze() < 1000):
+        if (flds.shape[0] > 2500) & (clstqry.N.squeeze() < 1000):
             print("Down-sampling mock field FOV to 2500 stars")
-            flds = flds.sample(5000)
+            flds = flds.sample(2500)
 
 
-    Nflds_still_too_large = flds.shape[0] > 5000
+    Nflds_still_too_large = flds.shape[0] > 2500
     if Nflds_still_too_large:
         flds = flds.sample(2500)
 
@@ -542,7 +564,8 @@ def main(index, part2=0):
     X,C = assemble_gaia_covariance_matrix(fov_)
     usXcp,usCcp = bootstrap_synthetic_covariance_matrix(X,C,10000)
 
-    for ii,col in enumerate(columns):
+    obs_cols = ['ra','dec','parallax','pmra','pmdec']
+    for ii,col in enumerate(obs_cols):
         fov_obs[col] = usXcp[:,ii]        ##### USE THIS FOV FILE TO COMPARE OBS TO MODEL
 
     scaler = RobustScaler().fit(usXcp)
@@ -556,12 +579,12 @@ def main(index, part2=0):
     
     print("Starting XDGMM run.")
 
-    xdmod = XDGMM(tol=1e-8, 
+    xdmod = XDGMM(tol=tol_val, 
                 method='Bovy', 
                 n_iter=10**9, 
                 n_components=2, 
                 random_state=666,
-                w=1e-10)
+                w=regularization_val)
 
     bic_test_failure_flag = 1
     opt_Nc = 4
@@ -577,12 +600,12 @@ def main(index, part2=0):
         print("Model failed during XDGMM BIC test")
         print(f"Setting Model N_c to default {opt_Nc}")
     try:
-        xdmod = XDGMM(tol=1e-8, 
+        xdmod = XDGMM(tol=tol_val, 
                 method='Bovy', 
                 n_iter=10**9, 
                 n_components=opt_Nc, 
                 random_state=666,
-                w=1e-10)
+                w=regularization_val)
 
         xdmod.fit(Xcp, Ccp)
         
@@ -591,13 +614,12 @@ def main(index, part2=0):
         per_component_labels = proba.argmax(axis=1)
 
         def compute_diff_entp(V):
-            DE =((V.shape[0]/2) 
-                + (V.shape[0]/2.)*np.log(2.*np.pi) 
-                + .5*np.log(np.linalg.det(V))
-                )
+            DE = (V.shape[0]/2.) \
+                  * (1. + np.log(2. * np.pi)) \
+                  + .5 * np.log(np.linalg.det(V))
             return DE
 
-        N_per_comp = np.array([sum(per_component_labels==ii) for ii in np.arange(opt_Nc)])
+        N_per_comp = np.array([sum(proba[:,ii] > 0.5) for ii in range(opt_Nc)])
         sorted_by_Ncomp = np.argsort(N_per_comp)[::-1]
 
         DEs = np.array([compute_diff_entp(Vi) for Vi in xdmod.V])
@@ -610,18 +632,19 @@ def main(index, part2=0):
 
             memb_mask = cand_probs > 0.5
             cand_dat = fov_obs[memb_mask]
-            
-            print(sum(memb_mask))
-            isnt_asterism = check_cluster_spatial_proper_motion_spread(cand_dat)
+            act_dat = fov_obs[fov_obs['popid'] == 11]
+            # print(sum(memb_mask))
+            isnt_asterism = check_cluster_spatial_proper_motion_spread(cand_dat, fov_obs)
             # lit_param = np.array([RA,DEC,Plx,PMRA,PMDE]).reshape(1,-1)
             # lra,ldec,lplx,lpmra,lpmde = scaler.transform(lit_param).squeeze()
 
-            cparam,_ = get_mad_sigmaclip_params(cand_dat)
-
-            # cand_delpm2 = np.sqrt( (lpmra - cparam[3])**2 + (lpmde - cparam[4])**2 )
+            # cand_param, _ = get_mad_sigmaclip_params(cand_dat)
+            # act_param, _ = get_mad_sigmaclip_params(act_dat)
+            # cand_delpm2 = np.sqrt( (act_param[3] - cand_param[3])**2 + 
+            #                     (act_param[4] - cand_param[4])**2 )
 
             lesser_de = DEs[i_c] < min_DE
-            suff_memb = sum(memb_mask) > 6
+            suff_memb = sum(memb_mask) > 12
             # closer_cntr = cand_delpm2 < min_delpm2
             
             print(i_c, sum(memb_mask),lesser_de, suff_memb, isnt_asterism)
@@ -717,6 +740,8 @@ result.add_option('-i', dest='index', default=0, type='int',
                 help='indice of cluster to fit from CG2020')
 result.add_option('--p2',dest='part2',default=0, type='int',
                 help='arg to increased indices wo angering slurm')
+result.add_option('--tr',dest='testrun', default=1, type='int',
+                help='if 1, then lower tol for faster testing')
 if __name__ == "__main__":
     opt,arguments = result.parse_args()
     main(**opt.__dict__)
