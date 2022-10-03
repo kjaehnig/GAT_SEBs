@@ -454,7 +454,7 @@ def main(index,
     Nfov_dr3 = None
     try:
         print("querying DR3 for Nstars in FOV")
-        Nfov_dr3 = get_stars_in_fov(int(max_rec/2), RA, DEC, PMRA, PMDE, R50, Plx, return_dat=False)
+        Nfov_dr3 = get_stars_in_fov(int(max_rec), RA, DEC, PMRA, PMDE, R50, Plx, return_dat=False)
     except:
         print("dr3 query failed or timed out")
         Nfov_dr3 = None
