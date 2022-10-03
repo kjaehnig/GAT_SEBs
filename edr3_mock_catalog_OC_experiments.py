@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import math as ma
 import pyvo as pvy
+from pyvo.dal.tap import TAPService as TAPs
 import astropy as ast
 import matplotlib.pyplot as plt
 from astroquery.utils.tap.core import TapPlus
@@ -350,13 +351,11 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx, return_dat=False):
                 password='Legacyofash117!', verbose=True)
 
 
-    res = Gaia.launch_job_async(query=f"select TOP {maxN} gdr3.source_id\
+    res = Gaia.launch_job_async(query=f"select TOP {maxN} gdr3.source_id \
                 FROM gaiadr3.gaia_source_lite as gdr3 \
                 WHERE gdr3.parallax_over_error > 5 \
-                AND gdr3.parallax < {Plx + 1} \
-                AND gdr3.parallax > {Plx - 1} \
-                AND DISTANCE(gdr3.ra, gdr3.dec, {RA},{DEC}) < {R50} \
-                "
+                AND ABS(gdr3.parallax - {Plx}) < 1 \
+                AND distance({RA}, {DEC}, gdr3.ra, gdr3.dec) < {R50}"
             )
                 # SQRT(POWER(gdr3.pmra - {PMRA},2) + POWER(gdr3.pmdec - {PMDE},2)) as pmpmdist \
     this_jobs_id = res.jobid
@@ -382,6 +381,7 @@ def main(index,
         tol_val, regularization_val = 1e-8, 1e-10
 
     print(skl.__version__)
+
     if part2:
         index += 1000
     DD = hf.load_system_specific_directory()
@@ -407,11 +407,11 @@ def main(index,
         clstqry.DE_ICRS.squeeze(),
         clstqry.pmRA.squeeze(),
         clstqry.pmDE.squeeze(),
-        5*clstqry.r50.squeeze(),
+        3*clstqry.r50.squeeze(),
         clstqry.Plx.squeeze()
     )
 
-    qry_cols=['source_id','ra', 'ra_error',
+    qry_cols=['source_id','popid', 'ra', 'ra_error',
         'dec', 'dec_error', 'parallax', 'parallax_error',
         'pmra', 'pmra_error',
         'pmdec', 'pmdec_error','ra_dec_corr',
@@ -423,19 +423,29 @@ def main(index,
     qry_cols = [ii+', ' for ii in qry_cols]
 
     qry_col_str = ''.join(qry_cols)
-
+    print(qry_col_str)
     tap_url = "http://dc.zah.uni-heidelberg.de/tap"
-    tap_oc_query = f"SELECT *  \
+    tap_oc_query = f"SELECT {qry_col_str} \
+                    GAVO_NORMAL_RANDOM(ra,ra_error) as ra_obs, \
+                    GAVO_NORMAL_RANDOM(dec,dec_error) as dec_obs, \
+                    GAVO_NORMAL_RANDOM(parallax,parallax_error) as parallax_obs, \
+                    GAVO_NORMAL_RANDOM(pmra,pmra_error) as pmra_obs, \
+                    GAVO_NORMAL_RANDOM(pmdec,pmdec_error) as pmdec_obs \
                     FROM gedr3mock.main \
                     WHERE popid = 11  \
-                    AND ABS(parallax - {Plx}) < 2 \
+                    AND ABS(parallax - {Plx}) < 1 \
                     AND distance({RA}, {DEC}, ra, dec) < {R50}"
 
-    tap_fs_query = f"select * \
-                     FROM gedr3mock.main WHERE popid != 11  \
-                     AND d11y > 99 \
-                     AND 1 = CONTAINS(POINT({RA},{DEC})\
-                         ,CIRCLE(gedr3mock.main.ra, gedr3mock.main.dec,{R50}))"
+    tap_fs_query = f"SELECT {qry_col_str} \
+                    GAVO_NORMAL_RANDOM(ra,ra_error) as ra_obs, \
+                    GAVO_NORMAL_RANDOM(dec,dec_error) as dec_obs, \
+                    GAVO_NORMAL_RANDOM(parallax,parallax_error) as parallax_obs, \
+                    GAVO_NORMAL_RANDOM(pmra,pmra_error) as pmra_obs, \
+                    GAVO_NORMAL_RANDOM(pmdec,pmdec_error) as pmdec_obs \
+                    FROM gedr3mock.main \
+                    WHERE popid != 11  \
+                    AND ABS(parallax - {Plx}) < 1 \
+                    AND distance({RA}, {DEC}, ra, dec) < {R50}"
 
     # print(tap_oc_query)
     
@@ -450,23 +460,35 @@ def main(index,
         Nfov_dr3 = None
     for ntry in range(query_attempts):
         try: 
-            pvy_cs = pvy.tablesearch(url=tap_url, query=tap_oc_query, maxrec=max_rec)
-            pvy_fs = pvy.tablesearch(url=tap_url, query=tap_fs_query, maxrec=max_rec)
+
+            # pvy_cs = pvy.tablesearch(url=tap_url, query=tap_oc_query, maxrec=max_rec)
+            print("Initializing GAVO TAP server")
+            fov_TAP = TAPs(tap_url)
+
+            print("Running ASYNC query to GAVO mock catalog")
+            pvy_cs = fov_TAP.run_async(tap_oc_query, maxrec=max_rec)
             clsts = pvy_cs.to_table().to_pandas()
             clsts['cluster_flag'] = np.ones(clsts.shape[0])
+
+            # pvy_fs = pvy.tablesearch(url=tap_url, query=tap_fs_query, maxrec=max_rec)
+
+            pvy_fs = fov_TAP.run_async(tap_fs_query, maxrec=max_rec)
             flds = pvy_fs.to_table().to_pandas()
             flds['cluster_flag'] = np.zeros(flds.shape[0])
+
             print(f"Successful mock-catalog query after {failed_tries} failures")
             break
         except:
             failed_tries += 1
 
     if failed_tries == query_attempts:
+        print(f"{clst_name}_FAILED_GAVO_QUERY")
         file = open(DD+f"failed_xdgmm_mocks/{clst_name}_FAILED_GAVO_QUERY",'wb')
         file.close()
         return
 
     if clsts.shape[0] < 12:
+        print(f'{clst_name}_Nclst_LT12')
         file = open(DD+f"failed_xdgmm_mocks/{clst_name}_Nclst_LT12",'wb')
         file.close()
         return
@@ -559,16 +581,20 @@ def main(index,
     print("N mock field stars:    ",flds.shape[0])
 
     fov_ = pd.concat([clsts, flds], ignore_index=True)
-    fov_ = fov_.sort_values('logg')
+    fov_ = fov_.sort_values('source_id')
 
     fov_obs = fov_.copy()
 
-    X,C = assemble_gaia_covariance_matrix(fov_)
-    usXcp,usCcp = bootstrap_synthetic_covariance_matrix(X,C,10000)
-
     obs_cols = ['ra','dec','parallax','pmra','pmdec']
+
+    Xobs = np.zeros((fov_obs.shape[0], len(obs_cols)))
     for ii,col in enumerate(obs_cols):
-        fov_obs[col] = usXcp[:,ii]        ##### USE THIS FOV FILE TO COMPARE OBS TO MODEL
+        Xobs[:,ii] = fov_[col+'_obs']
+        fov_obs[col] = fov_[col+'_obs']
+
+    __,C = assemble_gaia_covariance_matrix(fov_obs)
+    usXcp,usCcp = bootstrap_synthetic_covariance_matrix(Xobs,C,10000)
+    
 
     scaler = RobustScaler().fit(usXcp)
     scalings_ = scaler.scale_
