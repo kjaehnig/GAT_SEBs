@@ -299,7 +299,7 @@ def run_mst_asmr_check(cls_dat, fov_dat):
     l,sigl = get_avg_mst_branch_lengths(
                     rndm_pts,
                     size=cand_ra.shape[0],
-                    niter=500)
+                    niter=1000)
     
     asmr = (l-cand_lobs)/sigl
 
@@ -351,10 +351,10 @@ def get_stars_in_fov(maxN, RA, DEC, PMRA, PMDE, R50, Plx, return_dat=False):
                 password='Legacyofash117!', verbose=True)
 
 
-    res = Gaia.launch_job_async(query=f"select TOP {maxN} gdr3.source_id \
+    res = Gaia.launch_job_async(query=f"select gdr3.source_id \
                 FROM gaiadr3.gaia_source_lite as gdr3 \
                 WHERE gdr3.parallax_over_error > 5 \
-                AND ABS(gdr3.parallax - {Plx}) < 1 \
+                AND ABS(gdr3.parallax - {Plx}) < .5 \
                 AND distance({RA}, {DEC}, gdr3.ra, gdr3.dec) < {R50}"
             )
                 # SQRT(POWER(gdr3.pmra - {PMRA},2) + POWER(gdr3.pmdec - {PMDE},2)) as pmpmdist \
@@ -375,7 +375,7 @@ def main(index,
 
     if testrun:
         print("Running in test mode.")
-        tol_val, regularization_val = 1e-6, 1e-8
+        tol_val, regularization_val = 1e-6, 1e-10
     else:
         print("Running in production mode.")
         tol_val, regularization_val = 1e-8, 1e-10
@@ -391,9 +391,14 @@ def main(index,
     max_rec = 20000
     # clst_name = 'NGC_7789'
     CG2020clsts = pd.read_csv("cantat_gaudin_2020_cluster_catalog.csv")
+
+
     # CG2020membs = pd.read_csv("cantat_gaudin_2020_member_catalog.csv")
 
-    clst_name = CG2020clsts.iloc[index]['Cluster']
+    # clst_name = CG2020clsts.iloc[index]['Cluster']
+
+    mock_clst_list = pd.read_csv('clusters_with_actual_mock_counterparts.csv')
+    clst_name = mock_clst_list.iloc[index]['Cluster']
 
     clstqry = CG2020clsts.loc[CG2020clsts.Cluster == clst_name]
     # membqry = CG2020membs.loc[CG2020membs.Cluster == clst_name]
@@ -407,7 +412,7 @@ def main(index,
         clstqry.DE_ICRS.squeeze(),
         clstqry.pmRA.squeeze(),
         clstqry.pmDE.squeeze(),
-        3*clstqry.r50.squeeze(),
+        2*clstqry.r50.squeeze(),
         clstqry.Plx.squeeze()
     )
 
@@ -433,7 +438,7 @@ def main(index,
                     GAVO_NORMAL_RANDOM(pmdec,pmdec_error) as pmdec_obs \
                     FROM gedr3mock.main \
                     WHERE popid = 11  \
-                    AND ABS(parallax - {Plx}) < 1 \
+                    AND ABS(parallax - {Plx}) < .5 \
                     AND distance({RA}, {DEC}, ra, dec) < {R50}"
 
     tap_fs_query = f"SELECT {qry_col_str} \
@@ -444,7 +449,7 @@ def main(index,
                     GAVO_NORMAL_RANDOM(pmdec,pmdec_error) as pmdec_obs \
                     FROM gedr3mock.main \
                     WHERE popid != 11  \
-                    AND ABS(parallax - {Plx}) < 1 \
+                    AND ABS(parallax - {Plx}) < .5 \
                     AND distance({RA}, {DEC}, ra, dec) < {R50}"
 
     # print(tap_oc_query)
@@ -487,76 +492,12 @@ def main(index,
         file.close()
         return
 
-    if clsts.shape[0] < 12:
-        print(f'{clst_name}_Nclst_LT12')
-        file = open(DD+f"failed_xdgmm_mocks/{clst_name}_Nclst_LT12",'wb')
+    min_num_memb = 12
+    if clsts.shape[0] < min_num_memb:
+        print(f'{clst_name}_Nclst_LT{str(min_num_memb)}')
+        file = open(DD+f"failed_xdgmm_mocks/{clst_name}_Nclst_LT{str(min_num_memb)}",'wb')
         file.close()
         return
-
-
-    # clsts = clsts[clsts['parallax']/clsts['parallax_error']] > 10
-    # clsts = flds[flds['parallax']/flds['parallax_error']] > 10
-
-
-
-    # usXdr3, usCdr3 = assemble_gaia_covariance_matrix(dr3_dat)
-    # dr3scaler = RobustScaler().fit(usXdr3)
-    # dr3scalings = dr3scaler.scale_
-
-    # Xdr3 = dr3scaler.transform(usXdr3)
-    # Cdr3 = scale_covariance_matrices(usCdr3, dr3scalings)
-    # cov_scaler = assemble_scaling_matrix(dr3scalings)
-    
-    # Cdr3 = usCdr3 / cov_scaler
-
-    # pos_def = []
-    # for cov in Cdr3:
-    #     try:
-    #         np.linalg.cholesky(cov)
-    #         pos_def.append(1)
-    #     except:
-    #         pos_def.append(0)
-
-    # print(f"there are {sum(pos_def)}/{len(pos_def)} positive-definite covariance matrices")
-
-    # dr3mod = XDGMM(tol=1e-8,
-    #             method='Bovy',
-    #             n_iter=10**9,
-    #             n_components=2,
-    #             random_state=999,
-    #             w = np.min(usCdr3/cov_scaler)**2.)
-
-
-    # dr3mod.fit(Xdr3, Cdr3)
-    # try:
-    #     np.linalg.cholesky(dr3mod.V[0])
-    # except:
-    #     print(f"component 0 is NOT PosSemiDef")
-    # try:
-    #     np.linalg.cholesky(dr3mod.V[1])
-    # except:
-    #     print(f"component 1 is NOT PosSemiDef")
-    #     return
-    # compV = dr3mod.V
-    # compDE = (5./2) + (5./2.)*np.log(2.*np.pi) + .5*np.log(np.linalg.det(compV))
-
-    # cluster_lbl, field_lbl = np.argmin(compDE), np.argmax(compDE)
-
-    # dr3proba = dr3mod.predict_proba(Xdr3, Cdr3)
-    # joint_proba = dr3proba[:,cluster_lbl]# * (1 - dr3proba[:,field_lbl])
-
-    # dr3labels = np.zeros_like(joint_proba)
-    # dr3labels[joint_proba > 0.5] = 1.0
-
-
-    # Ncluster = int(np.sum(dr3labels))
-    # Nfield = int(len(dr3labels) - Ncluster)
-
-
-    # print(f"finished running XDGMM on fov for {clst_name}.")
-    # print(f"XDGMM classified {Ncluster} OC stars and {Nfield} field stars")
-    # print(F"starting XDGMM fit for mock catalog FOV.")
-    ### -----------------------------------------------------------------------
 
     # print("Inflating plx_error to better approximate Gaia DR3")
     # clsts = add_obs_err_to_mock(clsts)
@@ -593,8 +534,9 @@ def main(index,
         fov_obs[col] = fov_[col+'_obs']
 
     __,C = assemble_gaia_covariance_matrix(fov_obs)
-    usXcp,usCcp = bootstrap_synthetic_covariance_matrix(Xobs,C,10000)
+    __,usCcp = bootstrap_synthetic_covariance_matrix(Xobs,C,10000)
     
+    usXcp = Xobs 
 
     scaler = RobustScaler().fit(usXcp)
     scalings_ = scaler.scale_
@@ -605,7 +547,8 @@ def main(index,
     
     Ccp = usCcp / cov_scaler
     
-    print("Starting XDGMM run.")
+    print(F"starting XDGMM fit for mock catalog FOV.")
+    print("-"*50)
 
     xdmod = XDGMM(tol=tol_val, 
                 method='Bovy', 
@@ -615,12 +558,11 @@ def main(index,
                 w=regularization_val)
 
     bic_test_failure_flag = 1
-    opt_Nc = 4
+    opt_Nc = 3
     try:
         bics, opt_Nc, min_bic = xdmod.bic_test(
                                         Xcp, Ccp,
                                         param_range=np.arange(0,9)+2,
-                                        no_err = False
                                     )
         print(f"best model (acc. to BIC) is: {opt_Nc}")
         bic_test_failure_flag = 0
@@ -651,11 +593,12 @@ def main(index,
         sorted_by_Ncomp = np.argsort(N_per_comp)[::-1]
 
         DEs = np.array([compute_diff_entp(Vi) for Vi in xdmod.V])
+        sorted_by_DE = np.argsort(DEs)
 
         best_comp = np.inf
         min_DE = np.inf
         min_delpm2 = np.inf
-        for i_c in sorted_by_Ncomp:
+        for i_c in sorted_by_DE:
             cand_probs = proba[:,i_c]
 
             memb_mask = cand_probs > 0.5
@@ -663,6 +606,8 @@ def main(index,
             act_dat = fov_obs[fov_obs['popid'] == 11]
             # print(sum(memb_mask))
             isnt_asterism = check_cluster_spatial_proper_motion_spread(cand_dat, fov_obs)
+            # spmpm_check = compute_proper_motion_dispersion_check(cand_dat)
+            # asmr_check = run_mst_asmr_check(cand_dat, fov_obs)
             # lit_param = np.array([RA,DEC,Plx,PMRA,PMDE]).reshape(1,-1)
             # lra,ldec,lplx,lpmra,lpmde = scaler.transform(lit_param).squeeze()
 
@@ -672,12 +617,12 @@ def main(index,
             #                     (act_param[4] - cand_param[4])**2 )
 
             lesser_de = DEs[i_c] < min_DE
-            suff_memb = sum(memb_mask) > 12
+            suff_memb = sum(memb_mask) > min_num_memb
             # closer_cntr = cand_delpm2 < min_delpm2
             
-            print(i_c, sum(memb_mask),lesser_de, suff_memb, isnt_asterism)
+            print(i_c, sum(memb_mask), lesser_de, suff_memb, bool(isnt_asterism))
 
-            if lesser_de & suff_memb & isnt_asterism:
+            if lesser_de & suff_memb & bool(isnt_asterism):
                 print(f"comp-{i_c} might be a cluster")
                 min_DE = DEs[i_c]
                 best_comp = i_c
