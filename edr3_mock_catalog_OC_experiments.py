@@ -526,7 +526,7 @@ def main(index,
     #     clsts = clsts.sample(clstqry.N.squeeze())
 
 
-    Nmax_fieldstars = 500
+    Nmax_fieldstars = 2000
     if (Nfov_dr3 is not None):
         if (flds.shape[0] > Nfov_dr3) & (Nfov_dr3 < int(max_rec/2.)):
             print("Down-sampling mock field FOV using DR3 FOV")
@@ -548,7 +548,7 @@ def main(index,
     print("N mock field stars:    ",flds.shape[0])
 
     fov_ = pd.concat([clsts, flds], ignore_index=True)
-    fov_ = fov_.sort_values('source_id').loc[fov_.popid != 11]
+    fov_ = fov_.sort_values('source_id')###.loc[fov_.popid != 11]
 
     fov_obs = fov_.copy()
 
