@@ -250,10 +250,11 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None, no_plot=False):
     if sys.platform in ['linux','linux2']:
         BinResDir = DD + 'ceph/pymultinest_fits/'
     else:
-        BinResDir = DD + "pymultinest_fits_rusty/"
+        BinResDir = DD + "pymultinest_fits/"
+        print(BinResDir)
     ID = TIC_TARGET.split(' ')[1]
     mod = BinaryStarModel.load_hdf(BinResDir + f"tic_{ID}_binary_model_obj.hdf")
-    m0,m1,r0,r1,mbol0,mbol1 = mod.derived_samples[['mass_0','mass_1','radius_0', 'radius_1','Mbol_0','Mbol_1']].values.T
+    m0,m1,r0,r1,mbol0,mbol1,teff0,teff1 = mod.derived_samples[['mass_0','mass_1','radius_0', 'radius_1','Mbol_0','Mbol_1','Teff_0','Teff_1']].values.T
     
     num, denom = np.argmin([np.median(m0), np.median(m1)]), np.argmax([np.median(m0), np.median(m1)])
     ms, mp = [m0,m1][num], [m0,m1][denom]
@@ -262,33 +263,40 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None, no_plot=False):
     
     mbols,mbolp = [mbol0,mbol1][num], [mbol0,mbol1][denom]
     
+    teffs,teffp = [teff0,teff1][num], [teff0,teff1][denom]
+
     mp_madSD = np.median(abs(mp - np.median(mp))) * 1.4826
     rp_madSD = np.median(abs(rp - np.median(rp))) * 1.4826
     mbp_madSD = np.median(abs(mbolp - np.median(mbolp))) * 1.4826
-    
+    teffp_madSD = np.median(abs(teffp - np.median(teffp))) * 1.4826
+
     ms_madSD = np.median(abs(ms - np.median(ms))) * 1.4826
     rs_madSD = np.median(abs(rs - np.median(rs))) * 1.4826
     mbs_madSD = np.median(abs(mbols - np.median(mbols))) * 1.4826
-    
+    teffs_madSD = np.median(abs(teffs - np.median(teffs))) * 1.4826
+
     nsig = nsig
     mp_keep = abs(mp - np.median(mp)) < nsig * mp_madSD
     rp_keep = abs(rp - np.median(rp)) < nsig * rp_madSD
     mbp_keep = abs(mbolp - np.median(mbolp)) < nsig * mbp_madSD
+    tp_keep = abs(teffp - np.median(teffp)) < nsig * teffp_madSD
     
     ms_keep = abs(ms - np.median(ms)) < nsig * ms_madSD
     rs_keep = abs(rs - np.median(rs)) < nsig * rs_madSD
     mbs_keep = abs(mbols - np.median(mbols)) < nsig * mbs_madSD
+    ts_keep = abs(teffs - np.median(teffs)) < nsig * teffs_madSD
     
-    
-    cmplt_mask = (mp_keep) & (rp_keep) & (mbp_keep) & (ms_keep) & (rs_keep) & (mbs_keep)
+
+
+    cmplt_mask = (mp_keep) & (rp_keep) & (mbp_keep) & (ms_keep) & (rs_keep) & (mbs_keep) & (ts_keep) & (tp_keep)
 
     
     mod.derived_samples['logMp'] = np.log(mp)
     mod.derived_samples['logRp'] = np.log(rp)
     mod.derived_samples['logk'] = np.log(rs / rp)
     mod.derived_samples['logq'] = np.log(ms / mp)
-    mod.derived_samples['logs'] = np.log(mbols / mbolp)
-    
+    # mod.derived_samples['logs'] = np.log(mbols / mbolp)
+    mod.derived_samples['logs'] = np.log((teffs / teffp)**4.)
     if no_plot is False:
         fig = corner(az.from_dict(mod.derived_samples[['logMp','logRp','logk','logq','logs']].to_dict('list')))
         fig.axes[0].set_title(TIC_TARGET + f"\nN: {cmplt_mask.shape[0]}" +f"\nNmask: {cmplt_mask.sum()}" + f"\nNSigClip: {int(nsig)}" )
@@ -308,7 +316,7 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None, no_plot=False):
     r2 = rs[cmplt_mask]
     log_k = np.log(rs / rp)[cmplt_mask]
     log_q = np.log(ms / mp)[cmplt_mask]
-    log_s = np.log(mbols / mbolp)[cmplt_mask]
+    log_s = np.log((teffs / teffp)**4.)[cmplt_mask]
 
     
     mvPrior = np.array([
@@ -1374,7 +1382,7 @@ def get_edr3_dr2_xmatch(data, id_col='GaiaDR2'):
     Gaia.login(user='kjaehnig',
                 password='Legacyofash117!', verbose=True)
 
-    table = Table([data['Cluster'],data[id_col],data['proba']],# data['bss_flag']],
+    table = Table([data['Cluster'],data[id_col],data['Proba']],# data['bss_flag']],
                 names=['Cluster','orig_id','proba'])
     res = Gaia.launch_job_async(query="select tc.Cluster as Cluster, tc.orig_id, tc.proba, \
             gedr3.source_id,\
@@ -1431,3 +1439,7 @@ def download_dr3_data_for_tic_binaries(data):
 
 
     return dat
+
+
+
+
