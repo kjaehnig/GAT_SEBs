@@ -299,7 +299,7 @@ def run_mst_asmr_check(cls_dat, fov_dat):
     l,sigl = get_avg_mst_branch_lengths(
                     rndm_pts,
                     size=cand_ra.shape[0],
-                    niter=1000)
+                    niter=2000)
     
     asmr = (l-cand_lobs)/sigl
 
@@ -431,7 +431,9 @@ def main(index,
     Plx = mu_s[2]
     PMRA, PMDE = mu_s[3], mu_s[4]
 
-    assert membs.parallax.max() - membs.parallax.min() < 1.0
+    # assert membs.parallax.max() - membs.parallax.min() < 1.0
+
+    plx_rng = 1.5*abs(membs.parallax.max() - membs.parallax.min())
 
     qry_cols=['source_id','popid', 'ra', 'ra_error',
         'dec', 'dec_error', 'parallax', 'parallax_error',
@@ -455,7 +457,7 @@ def main(index,
                     GAVO_NORMAL_RANDOM(pmdec,pmdec_error) as pmdec_obs \
                     FROM gedr3mock.main \
                     WHERE popid = 11  \
-                    AND ABS(parallax - {Plx}) < .5 \
+                    AND ABS(parallax - {Plx}) < {plx_rng} \
                     AND distance({RA}, {DEC}, ra, dec) < {R50}"
 
     tap_fs_query = f"SELECT {qry_col_str} \
@@ -466,7 +468,7 @@ def main(index,
                     GAVO_NORMAL_RANDOM(pmdec,pmdec_error) as pmdec_obs \
                     FROM gedr3mock.main \
                     WHERE popid != 11  \
-                    AND ABS(parallax - {Plx}) < .5 \
+                    AND ABS(parallax - {Plx}) < {plx_rng} \
                     AND distance({RA}, {DEC}, ra, dec) < {R50}"
 
     # print(tap_oc_query)
@@ -524,7 +526,7 @@ def main(index,
     #     clsts = clsts.sample(clstqry.N.squeeze())
 
 
-    Nmax_fieldstars = 2000
+    Nmax_fieldstars = 2500
     if (Nfov_dr3 is not None):
         if (flds.shape[0] > Nfov_dr3) & (Nfov_dr3 < int(max_rec/2.)):
             print("Down-sampling mock field FOV using DR3 FOV")
@@ -574,12 +576,7 @@ def main(index,
     print(F"starting XDGMM fit for mock catalog FOV.")
     print("-"*50)
 
-    base_xdmod = XDGMM(tol=tol_val, 
-                method='Bovy', 
-                n_iter=10**9, 
-                n_components=2, 
-                random_state=666,
-                w=regularization_val)
+
 
     bic_test_failure_flag = 1
     opt_Nc = 3
@@ -591,35 +588,40 @@ def main(index,
     best_model = None
     for nc in nc_range:
 
-        nc_model = base_xdmod
-        nc_model.n_components = nc
+        nc_model = XDGMM(tol=tol_val, 
+                method='Bovy', 
+                n_iter=10**9, 
+                n_components=nc, 
+                random_state=999,
+                w=regularization_val)
 
         nc_model.fit(Xcp, Ccp)
         bic = nc_model.bic(Xcp, Ccp)*1000
-        print(f"N= {nc}, BIC= {bic/1000.}")
+        print(f"N= {nc}, BIC= {bic}")
         bic_array.append(int(bic))
-        model_storage[str(int(bic))] = nc_model
+        model_storage[int(bic)] = nc_model
 
-        if (bic/1000) < bic_threshold:
+        if bic < bic_threshold:
             opt_Nc = nc
-            bic_threshold = bic/1000
+            bic_threshold = bic
             best_model = nc_model
 
+    arg_sorted_bic = np.argsort(bic_array)
     print(f"best model (acc. to BIC) is: {opt_Nc}, {best_model.n_components}")
     bic_test_failure_flag = 0
 
-    # xdmod = best_model  # model_storage[str(np.array(bic_array).min())]
+    xdmod = model_storage[int(bic_array[arg_sorted_bic[0]])]
 
 
     try:
-        xdmod = XDGMM(tol=tol_val, 
-                method='Bovy', 
-                n_iter=10**9, 
-                n_components=opt_Nc, 
-                random_state=666,
-                w=regularization_val)
+        # xdmod = XDGMM(tol=tol_val, 
+        #         method='Bovy', 
+        #         n_iter=10**9, 
+        #         n_components=opt_Nc, 
+        #         random_state=999,
+        #         w=regularization_val)
 
-        xdmod.fit(Xcp, Ccp)
+        # xdmod.fit(Xcp, Ccp)
         
         proba = xdmod.predict_proba(Xcp, Ccp)
         
@@ -684,7 +686,8 @@ def main(index,
         return
 
     joint_proba = proba[:,cluster_lbl]# * (1 - proba[:,field_lbl])
-        # file = open(f"{clst_name}_xdgmm_failed",'wb')
+    fov_.loc[:,'xdproba'] = joint_proba 
+       # file = open(f"{clst_name}_xdgmm_failed",'wb')
         # file.close()
 
     # clst_mask = proba[:,1] > 0.75
@@ -717,7 +720,7 @@ def main(index,
     
     CR['best_modelcomp'] = str(opt_Nc).zfill(2)+str(cluster_lbl).zfill(2)
     CR['bic_test_failure_flag'] = bic_test_failure_flag
-
+    CR['xdmod'] = xdmod 
     CR['labels'] = mocklabels
     CR['confusion_matrix'] = CM 
     CR['TnFpFnTp'] = CM.ravel()
