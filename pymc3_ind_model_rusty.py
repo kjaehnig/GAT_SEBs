@@ -126,6 +126,8 @@ def load_construct_run_pymc3_model(
     # pymc3_model_dict = hf.load_precompiled_pymc3_model_data(DD, TIC_TARGET,
     #                                                     sparse_factor=sparse_factor)
     center_data = 'APOGEE' if center==1 else "TESS"
+    if TIC_TARGET == 'TIC 169820068': center_data = 'APOGEE'
+
     print(f"centering lightcurve and RVs on {center_data}")
     pymc3_model_dict = hf.load_all_data_for_pymc3_model(
                         TIC_TARGET, 
@@ -190,7 +192,7 @@ def load_construct_run_pymc3_model(
             log_k = pm.Normal("log_k", mu=LOGiso_k[0], sigma=mf*LOGiso_k[1], testval = LOGiso_k[0])  # radius ratio        
             log_q = pm.Normal("log_q", mu=LOGiso_q[0], sigma=mf*LOGiso_q[1], testval = LOGiso_q[0])  # mass ratio
             log_s = pm.Normal("log_s", mu=LOGiso_s[0], sigma=mf*LOGiso_s[1], testval = LOGiso_s[0])  # surface brightness ratio
-      
+            # log_s = pm.Uniform('log_s',lower=-5, upper=5, testval = -1)
             
             k = pm.Deterministic("k", tt.exp(log_k))
             q = pm.Deterministic("q", tt.exp(log_q))
@@ -506,7 +508,7 @@ def load_construct_run_pymc3_model(
     filename_list.append(filename_list[-1])
     for filename in filename_list:
         images.append(imageio.imread(filename))
-    imageio.mimsave(DD+f"apotess_systems/{TIC_TARGET.replace(' ','_')}_{SUFFIX}__diagnostic_movie_test.gif".replace('//','/'), images, fps=0.75)
+    imageio.mimsave(DD+f"apotess_systems/diagnostic_figures/{TIC_TARGET.replace(' ','_')}_{SUFFIX}__diagnostic_movie_test.gif".replace('//','/'), images, fps=0.75)
     print("#" * 50)
     print("#"*19 +"  FINISHED  " + "#"*19)
     print("#"*50)
@@ -569,7 +571,7 @@ def load_construct_run_pymc3_model(
         return
 
 
-    random_seeds = [int(f'26113668{ii+1}') for ii in range(chains)]
+    random_seeds = [int(10000 + ii) for ii in range(chains)]
     print(random_seeds)
     with model:
         trace = pm.sample(
