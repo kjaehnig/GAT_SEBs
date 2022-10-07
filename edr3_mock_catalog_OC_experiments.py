@@ -416,6 +416,19 @@ def main(index,
         clstqry.Plx.squeeze()
     )
 
+    CG2020dr3dat = pd.read_feather("CG2020membsDR3_data.feather")
+    membs = CG2020dr3dat.loc[CG2020dr3dat.cluster == clst_name]
+    membs = membs.loc[membs.proba >= 0.5]
+    membs['popid'] = np.ones(membs.shape[0], dtype='int') * 11
+
+    for ii in ['ra','dec','parallax','pmra','pmdec']:
+        membs[ii+'_obs'] = membs[ii].values
+
+    min_membs_gmag = membs.phot_g_mean_mag.min()
+
+
+
+
     qry_cols=['source_id','popid', 'ra', 'ra_error',
         'dec', 'dec_error', 'parallax', 'parallax_error',
         'pmra', 'pmra_error',
@@ -471,9 +484,9 @@ def main(index,
             fov_TAP = TAPs(tap_url)
 
             print("Running ASYNC query to GAVO mock catalog")
-            pvy_cs = fov_TAP.run_async(tap_oc_query, maxrec=max_rec)
-            clsts = pvy_cs.to_table().to_pandas()
-            clsts['cluster_flag'] = np.ones(clsts.shape[0])
+            # pvy_cs = fov_TAP.run_async(tap_oc_query, maxrec=max_rec)
+            # clsts = pvy_cs.to_table().to_pandas()
+            # clsts['cluster_flag'] = np.ones(clsts.shape[0])
 
             # pvy_fs = pvy.tablesearch(url=tap_url, query=tap_fs_query, maxrec=max_rec)
 
@@ -501,9 +514,9 @@ def main(index,
 
     # print("Inflating plx_error to better approximate Gaia DR3")
     # clsts = add_obs_err_to_mock(clsts)
-    if clsts.shape[0] > clstqry.N.squeeze():
-        print("Down-sampling mock cluster")
-        clsts = clsts.sample(clstqry.N.squeeze())
+    # if clsts.shape[0] > clstqry.N.squeeze():
+    #     print("Down-sampling mock cluster")
+    #     clsts = clsts.sample(clstqry.N.squeeze())
     if (Nfov_dr3 is not None):
         if (flds.shape[0] > Nfov_dr3) & (Nfov_dr3 < int(max_rec/2.)):
             print("Down-sampling mock field FOV using DR3 FOV")
@@ -517,6 +530,8 @@ def main(index,
     Nflds_still_too_large = flds.shape[0] > 2500
     if Nflds_still_too_large:
         flds = flds.sample(2500)
+
+    clsts = membs[np.append(qry_cols,['ra_obs','dec_obs','parallax_obs','pmra_obs','pmdec_obs'])]
 
     print("N mock cluster stars:  ",clsts.shape[0])
     print("N mock field stars:    ",flds.shape[0])
