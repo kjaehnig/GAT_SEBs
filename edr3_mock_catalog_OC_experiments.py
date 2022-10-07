@@ -395,10 +395,10 @@ def main(index,
 
     # CG2020membs = pd.read_csv("cantat_gaudin_2020_member_catalog.csv")
 
-    # clst_name = CG2020clsts.iloc[index]['Cluster']
+    clst_name = CG2020clsts.iloc[index]['Cluster']
 
     mock_clst_list = pd.read_csv('clusters_with_actual_mock_counterparts.csv')
-    clst_name = mock_clst_list.iloc[index]['Cluster']
+    # clst_name = mock_clst_list.iloc[index]['Cluster']
 
     clstqry = CG2020clsts.loc[CG2020clsts.Cluster == clst_name]
     # membqry = CG2020membs.loc[CG2020membs.Cluster == clst_name]
@@ -422,12 +422,16 @@ def main(index,
     membs['popid'] = np.ones(membs.shape[0], dtype='int') * 11
 
     for ii in ['ra','dec','parallax','pmra','pmdec']:
-        membs[ii+'_obs'] = membs[ii].values
+        membs.loc[:,ii+'_obs'] = membs[ii].values
 
-    min_membs_gmag = membs.phot_g_mean_mag.min()
+    max_membs_gmag = membs.phot_g_mean_mag.max()
 
+    mu_s, sig_s = get_mad_sigmaclip_params(membs.loc[membs.proba > 0.7])
+    RA,DEC = mu_s[0], mu_s[1]
+    Plx = mu_s[2]
+    PMRA, PMDE = mu_s[3], mu_s[4]
 
-
+    assert membs.parallax.max() - membs.parallax.min() < 1.0
 
     qry_cols=['source_id','popid', 'ra', 'ra_error',
         'dec', 'dec_error', 'parallax', 'parallax_error',
@@ -438,9 +442,9 @@ def main(index,
         'parallax_pmra_corr', 'parallax_pmdec_corr',
          'pmra_pmdec_corr','phot_g_mean_mag','bp_rp']
 
-    qry_cols = [ii+', ' for ii in qry_cols]
+    qry_cols2 = [ii+', ' for ii in qry_cols]
 
-    qry_col_str = ''.join(qry_cols)
+    qry_col_str = ''.join(qry_cols2)
     print(qry_col_str)
     tap_url = "http://dc.zah.uni-heidelberg.de/tap"
     tap_oc_query = f"SELECT {qry_col_str} \
@@ -492,8 +496,9 @@ def main(index,
 
             pvy_fs = fov_TAP.run_async(tap_fs_query, maxrec=max_rec)
             flds = pvy_fs.to_table().to_pandas()
-            flds['cluster_flag'] = np.zeros(flds.shape[0])
-
+            flds = flds.loc[flds.phot_g_mean_mag < max_membs_gmag]
+            flds.loc[:,'cluster_flag'] = np.zeros(flds.shape[0])
+            flds.loc[:,'proba'] = np.zeros(flds.shape[0])
             print(f"Successful mock-catalog query after {failed_tries} failures")
             break
         except:
@@ -506,32 +511,36 @@ def main(index,
         return
 
     min_num_memb = 12
-    if clsts.shape[0] < min_num_memb:
-        print(f'{clst_name}_Nclst_LT{str(min_num_memb)}')
-        file = open(DD+f"failed_xdgmm_mocks/{clst_name}_Nclst_LT{str(min_num_memb)}",'wb')
-        file.close()
-        return
+    # if clsts.shape[0] < min_num_memb:
+    #     print(f'{clst_name}_Nclst_LT{str(min_num_memb)}')
+    #     file = open(DD+f"failed_xdgmm_mocks/{clst_name}_Nclst_LT{str(min_num_memb)}",'wb')
+    #     file.close()
+    #     return
 
     # print("Inflating plx_error to better approximate Gaia DR3")
     # clsts = add_obs_err_to_mock(clsts)
     # if clsts.shape[0] > clstqry.N.squeeze():
     #     print("Down-sampling mock cluster")
     #     clsts = clsts.sample(clstqry.N.squeeze())
+
+
+    Nmax_fieldstars = 500
     if (Nfov_dr3 is not None):
         if (flds.shape[0] > Nfov_dr3) & (Nfov_dr3 < int(max_rec/2.)):
             print("Down-sampling mock field FOV using DR3 FOV")
             flds = flds.sample(Nfov_dr3)
     if (Nfov_dr3 is None):
-        if (flds.shape[0] > 2500) & (clstqry.N.squeeze() < 1000):
-            print("Down-sampling mock field FOV to 2500 stars")
-            flds = flds.sample(2500)
+        if (flds.shape[0] > Nmax_fieldstars) & (clstqry.N.squeeze() < 1000):
+            print(f"Down-sampling mock field FOV to {Nmax_fieldstars} stars")
+            flds = flds.sample(Nmax_fieldstars)
 
 
-    Nflds_still_too_large = flds.shape[0] > 2500
+    Nflds_still_too_large = flds.shape[0] > Nmax_fieldstars
     if Nflds_still_too_large:
-        flds = flds.sample(2500)
+        flds = flds.sample(Nmax_fieldstars)
 
-    clsts = membs[np.append(qry_cols,['ra_obs','dec_obs','parallax_obs','pmra_obs','pmdec_obs'])]
+    clsts = membs[np.append(qry_cols,['ra_obs','dec_obs','parallax_obs','pmra_obs','pmdec_obs','proba'])]
+    clsts.loc[:,'cluster_flag'] = np.ones(clsts.shape[0],dtype='int')
 
     print("N mock cluster stars:  ",clsts.shape[0])
     print("N mock field stars:    ",flds.shape[0])
@@ -565,7 +574,7 @@ def main(index,
     print(F"starting XDGMM fit for mock catalog FOV.")
     print("-"*50)
 
-    xdmod = XDGMM(tol=tol_val, 
+    base_xdmod = XDGMM(tol=tol_val, 
                 method='Bovy', 
                 n_iter=10**9, 
                 n_components=2, 
@@ -574,16 +583,34 @@ def main(index,
 
     bic_test_failure_flag = 1
     opt_Nc = 3
-    try:
-        bics, opt_Nc, min_bic = xdmod.bic_test(
-                                        Xcp, Ccp,
-                                        param_range=np.arange(0,9)+2,
-                                    )
-        print(f"best model (acc. to BIC) is: {opt_Nc}")
-        bic_test_failure_flag = 0
-    except:
-        print("Model failed during XDGMM BIC test")
-        print(f"Setting Model N_c to default {opt_Nc}")
+    nc_range = np.arange(0,9) + 2
+
+    model_storage = {}
+    bic_array = []
+    bic_threshold = np.inf
+    best_model = None
+    for nc in nc_range:
+
+        nc_model = base_xdmod
+        nc_model.n_components = nc
+
+        nc_model.fit(Xcp, Ccp)
+        bic = nc_model.bic(Xcp, Ccp)*1000
+        print(f"N= {nc}, BIC= {bic/1000.}")
+        bic_array.append(int(bic))
+        model_storage[str(int(bic))] = nc_model
+
+        if (bic/1000) < bic_threshold:
+            opt_Nc = nc
+            bic_threshold = bic/1000
+            best_model = nc_model
+
+    print(f"best model (acc. to BIC) is: {opt_Nc}, {best_model.n_components}")
+    bic_test_failure_flag = 0
+
+    # xdmod = best_model  # model_storage[str(np.array(bic_array).min())]
+
+
     try:
         xdmod = XDGMM(tol=tol_val, 
                 method='Bovy', 
@@ -703,6 +730,8 @@ def main(index,
     file = open(DD+f"xdgmm_performance_dicts/{clst_name}_xdgmm_performance_dict.pk",'wb')
     pk.dump(CR, file)
     file.close()
+    print(CR)
+
 # cluster_xdgmm_performance = {'clsts':[],
 #                                 'precision_recall_fscore_support':[]
 #                                 }
