@@ -418,7 +418,7 @@ def main(index,
 
     CG2020dr3dat = pd.read_feather("CG2020membsDR3_data.feather")
     membs = CG2020dr3dat.loc[CG2020dr3dat.cluster == clst_name]
-    membs = membs.loc[membs.proba >= 0.5]
+    membs = membs.loc[membs.proba >= .5]
     membs['popid'] = np.ones(membs.shape[0], dtype='int') * 11
 
     for ii in ['ra','dec','parallax','pmra','pmdec']:
@@ -526,7 +526,7 @@ def main(index,
     #     clsts = clsts.sample(clstqry.N.squeeze())
 
 
-    Nmax_fieldstars = 2500
+    Nmax_fieldstars = 500
     if (Nfov_dr3 is not None):
         if (flds.shape[0] > Nfov_dr3) & (Nfov_dr3 < int(max_rec/2.)):
             print("Down-sampling mock field FOV using DR3 FOV")
@@ -548,7 +548,7 @@ def main(index,
     print("N mock field stars:    ",flds.shape[0])
 
     fov_ = pd.concat([clsts, flds], ignore_index=True)
-    fov_ = fov_.sort_values('source_id')
+    fov_ = fov_.sort_values('source_id').loc[fov_.popid != 11]
 
     fov_obs = fov_.copy()
 
@@ -612,7 +612,21 @@ def main(index,
 
     xdmod = model_storage[int(bic_array[arg_sorted_bic[0]])]
 
+    xd_attr = ['mu','V','weights','w','tol','random_state']
 
+    attr_storage = {}
+    for ith_lbl in model_storage:
+        ith_mod = model_storage[ith_lbl]
+
+        attr_storage[ith_lbl] = {
+            'mu':ith_mod.mu,
+            'V':ith_mod.V,
+            'weights':ith_mod.weights,
+            'w':ith_mod.w,
+            'tol':ith_mod.tol,
+            'random_state':ith_mod.random_state,
+            'method':ith_mod.method
+        }
     try:
         # xdmod = XDGMM(tol=tol_val, 
         #         method='Bovy', 
@@ -675,6 +689,23 @@ def main(index,
         cluster_lbl = best_comp
 
         if cluster_lbl == np.inf:
+            CR = {}
+            CR['Cluster'] = clst_name
+            CR['mock_fov'] = fov_obs
+            CR['scaler'] = {'type':'Robust',
+                'scale_':scalings_,
+                'center_':scaler.center_}
+            CR['xdmodels'] = attr_storage
+            CR['Xcp'] = Xcp
+            CR['Ccp'] = Ccp 
+
+            if not os.path.exists(DD+"xdgmm_performance_dicts"):
+                os.mkdir(DD+"xdgmm_performance_dicts")
+            file = open(DD+f"xdgmm_performance_dicts/{clst_name}_failed_xdgmm_dict.pk",'wb') 
+            pk.dump(CR, file)
+            file.close()
+
+
             file = open(f"failed_xdgmm_mocks/{clst_name}_XDGMM_FOUND_NO_OCs",'wb')
             file.close()
             return
@@ -713,14 +744,14 @@ def main(index,
                 average='weighted')
 
     CR['Cluster'] = clst_name
-    CR['mock_fov'] = fov_
+    CR['mock_fov'] = fov_obs
     CR['scaler'] = {'type':'Robust',
                     'scale_':scalings_,
                     'center_':scaler.center_}
     
     CR['best_modelcomp'] = str(opt_Nc).zfill(2)+str(cluster_lbl).zfill(2)
     CR['bic_test_failure_flag'] = bic_test_failure_flag
-    CR['xdmod'] = xdmod 
+    CR['xdattr'] = attr_storage 
     CR['labels'] = mocklabels
     CR['confusion_matrix'] = CM 
     CR['TnFpFnTp'] = CM.ravel()
