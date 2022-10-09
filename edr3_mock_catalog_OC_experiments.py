@@ -717,7 +717,7 @@ def main(index,
         return
 
     joint_proba = proba[:,cluster_lbl]# * (1 - proba[:,field_lbl])
-    fov_.loc[:,'xdproba'] = joint_proba 
+    fov_obs.loc[:,'xdproba'] = joint_proba 
        # file = open(f"{clst_name}_xdgmm_failed",'wb')
         # file.close()
 
