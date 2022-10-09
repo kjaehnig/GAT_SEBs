@@ -412,7 +412,7 @@ def main(index,
         clstqry.DE_ICRS.squeeze(),
         clstqry.pmRA.squeeze(),
         clstqry.pmDE.squeeze(),
-        2*clstqry.r50.squeeze(),
+        3*clstqry.r50.squeeze(),
         clstqry.Plx.squeeze()
     )
 
@@ -526,7 +526,7 @@ def main(index,
     #     clsts = clsts.sample(clstqry.N.squeeze())
 
 
-    Nmax_fieldstars = 2000
+    Nmax_fieldstars = 2500
     if (Nfov_dr3 is not None):
         if (flds.shape[0] > Nfov_dr3) & (Nfov_dr3 < int(max_rec/2.)):
             print("Down-sampling mock field FOV using DR3 FOV")
