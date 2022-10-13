@@ -296,7 +296,7 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None, no_plot=False, 
     Ap = 9.3004*(rp*u.Rsun).to(u.Rsun).value / (dists*u.pc).to(u.pc).value
     As = 9.3004*(rs*u.Rsun).to(u.Rsun).value / (dists*u.pc).to(u.pc).value
 
-    bands = ['J_mag']
+    bands = ['TESS_mag']
     sbr_array = np.zeros((len(mp), len(bands)))
     for ii,bp in enumerate(bands):
         sbp = mod.derived_samples[bp+'_'+str(denom)].values + 5. * np.log10(Ap)
