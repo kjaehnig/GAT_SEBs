@@ -507,9 +507,9 @@ def load_construct_run_pymc3_model(
     filename_list.append(filename_list[-1])
     filename_list.append(filename_list[-1])
     filename_list.append(filename_list[-1])
-    for filename in filename_list:
-        images.append(imageio.imread(filename))
-    imageio.mimsave(DD+f"apotess_systems/diagnostic_figures/{TIC_TARGET.replace(' ','_')}_{SUFFIX}__diagnostic_movie_test.gif".replace('//','/'), images, fps=0.75)
+    # for filename in filename_list:
+        # images.append(imageio.imread(filename))
+    # imageio.mimsave(DD+f"apotess_systems/diagnostic_figures/{TIC_TARGET.replace(' ','_')}_{SUFFIX}__diagnostic_movie_test.gif".replace('//','/'), images, fps=0.75)
     print("#" * 50)
     print("#"*19 +"  FINISHED  " + "#"*19)
     print("#"*50)
