@@ -403,19 +403,21 @@ def load_construct_run_pymc3_model(
                 list_of_map_vars.append('b')
                 map_vars_dict['b'] = b
 
-
-            map_soln, info_ = pmx.optimize(map_soln, ecs, return_info=True)
-            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+            try:
+                map_soln, info_ = pmx.optimize(map_soln, ecs, return_info=True)
+                plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title='model after [ecs] opt step',
                                                      filename=filename_base + ' model after [ecs] opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
-            ecs_logp = -info_['fun']
-            filename_list.append(plot)
-            if ~np.isfinite(-info_['fun']):
+                ecs_logp = -info_['fun']
+                filename_list.append(plot)
+                if ~np.isfinite(-info_['fun']):
+                    list_of_map_vars.append('ecs')
+                    map_vars_dict['ecs'] = ecs
+            except:
+                print('optimizing ECS failed') 
                 list_of_map_vars.append('ecs')
                 map_vars_dict['ecs'] = ecs
-            
-            
 
             best_map_list = []
             whileloop_failsafe = 0
