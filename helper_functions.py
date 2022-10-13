@@ -238,7 +238,7 @@ def estimate_ecosw(bls2res, blsres):
     return ecosw_testval
 
 
-def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None, no_plot=False):
+def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None, no_plot=False, return_binmod=False):
     """
     FOR LATER CONSIDERATION:
     IMPLEMENT A RECURSIVE MAD-SIGMA CLIPPING THAT CONTINUES CLIPPING AT 3-MAD-SIGMA UNTIL THERE ARE 
@@ -250,7 +250,7 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None, no_plot=False):
     if sys.platform in ['linux','linux2']:
         BinResDir = DD + 'ceph/pymultinest_fits/'
     else:
-        BinResDir = DD + "pymultinest_fits/"
+        BinResDir = DD + "pymultinest_fits_rusty/"
         print(BinResDir)
     ID = TIC_TARGET.split(' ')[1]
     mod = BinaryStarModel.load_hdf(BinResDir + f"tic_{ID}_binary_model_obj.hdf")
@@ -290,13 +290,28 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None, no_plot=False):
 
     cmplt_mask = (mp_keep) & (rp_keep) & (mbp_keep) & (ms_keep) & (rs_keep) & (mbs_keep) & (ts_keep) & (tp_keep)
 
+    # bands = ['H_mag', 'J_mag', 'K_mag', 'BP_mag', 'RP_mag', 'G_mag']
+    # print(mod.derived_samples.columns)
+    dists = mod.derived_samples['distance'].values
+    Ap = 9.3004*(rp*u.Rsun).to(u.Rsun).value / (dists*u.pc).to(u.pc).value
+    As = 9.3004*(rs*u.Rsun).to(u.Rsun).value / (dists*u.pc).to(u.pc).value
+
+    bands = ['TESS_mag']
+    sbr_array = np.zeros((len(mp), len(bands)))
+    for ii,bp in enumerate(bands):
+        sbp = mod.derived_samples[bp+'_'+str(denom)].values + 5. * np.log10(Ap)
+        sbs = mod.derived_samples[bp+'_'+str(num)].values + 5. * np.log10(As)
+        sbr_array[:,ii] = (sbs / sbp)
     
+    # logs =  np.log(mbols / mbolp)
+    logs = np.log(np.mean(sbr_array, axis=1))
+
     mod.derived_samples['logMp'] = np.log(mp)
     mod.derived_samples['logRp'] = np.log(rp)
     mod.derived_samples['logk'] = np.log(rs / rp)
     mod.derived_samples['logq'] = np.log(ms / mp)
-    # mod.derived_samples['logs'] = np.log(mbols / mbolp)
-    mod.derived_samples['logs'] = np.log((teffs / teffp)**4.)
+    mod.derived_samples['logs'] = logs
+    # mod.derived_samples['logs'] = np.log(np.percentile(sbr_array,50,axis=1))
     if no_plot is False:
         fig = corner(az.from_dict(mod.derived_samples[['logMp','logRp','logk','logq','logs']].to_dict('list')))
         fig.axes[0].set_title(TIC_TARGET + f"\nN: {cmplt_mask.shape[0]}" +f"\nNmask: {cmplt_mask.sum()}" + f"\nNSigClip: {int(nsig)}" )
@@ -316,7 +331,7 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None, no_plot=False):
     r2 = rs[cmplt_mask]
     log_k = np.log(rs / rp)[cmplt_mask]
     log_q = np.log(ms / mp)[cmplt_mask]
-    log_s = np.log((teffs / teffp)**4.)[cmplt_mask]
+    log_s = logs[cmplt_mask]
 
     
     mvPrior = np.array([
@@ -330,8 +345,20 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None, no_plot=False):
     mvPrior_mu = np.mean(mvPrior, axis=-1)
     mvPrior_cov = np.cov(mvPrior)
     
-    
-    return {'mvPrior_mu':mvPrior_mu, 
+    if return_binmod:
+        return ({'mvPrior_mu':mvPrior_mu, 
+            'mvPrior_cov':mvPrior_cov,
+            'logm1':[np.mean(np.log(m1)), np.std(np.log(m1))],
+            'logm2':[np.mean(np.log(m2)), np.std(np.log(m2))],
+            'logr1':[np.mean(np.log(r1)), np.std(np.log(r1))],
+            'logr2':[np.mean(np.log(r2)), np.std(np.log(r2))],
+            'logq':[np.mean(log_q), np.std(log_q)],
+            'logs':[np.mean(log_s), np.std(log_s)], 
+            'logk':[np.mean(log_k), np.std(log_k)], 
+            'mvPrior':mvPrior
+            }, mod, cmplt_mask)
+    else:
+                return {'mvPrior_mu':mvPrior_mu, 
             'mvPrior_cov':mvPrior_cov,
             'logm1':[np.mean(np.log(m1)), np.std(np.log(m1))],
             'logm2':[np.mean(np.log(m2)), np.std(np.log(m2))],
@@ -342,7 +369,6 @@ def get_isochrones_binmod_res(TIC_TARGET, nsig=3, fig_dest=None, no_plot=False):
             'logk':[np.mean(log_k), np.std(log_k)], 
             'mvPrior':mvPrior
             }
-          
 
 
 def compute_value_in_post(model, idata, target, size=None):
@@ -699,6 +725,56 @@ def sparse_out_eclipse_phase_curve(pymc3_model_dict,sf,dur):
     return pymc3_model_dict
 
 
+def generate_interMAP_sparse_mask(pymc3_model_dict, sf):
+
+    x = pymc3_model_dict['x']
+    y = pymc3_model_dict['y']
+    yerr = pymc3_model_dict['yerr']
+
+    dur = pymc3_model_dict['dur'].value
+
+    map_period = pymc3_model_dict['MAP_period']
+    map_t0 = pymc3_model_dict['MAP_t0']
+
+    foldedx = fold(x, map_period, map_t0)
+    inds = np.argsort(foldedx)
+
+    dmf = 3.5
+    mask1 = (foldedx[inds] > 0.5*map_period - dmf*dur) & (foldedx[inds] < 0.5*map_period + dmf*dur)
+    mask2 = (foldedx[inds] > -0.5*map_period - dmf*dur) & (foldedx[inds] < -0.5*map_period + dmf*dur)
+    mask3 = (foldedx[inds] > -dmf*dur) & (foldedx[inds] < dmf*dur)
+
+    cmplt_mask = ~mask1&~mask2&~mask3
+
+    xX,yX,yerrX,m = run_with_sparse_data(foldedx[inds][cmplt_mask],
+                                            y[inds][cmplt_mask],
+                                            yerr[inds][cmplt_mask],
+                                            sparse_factor=sf,return_mask=True)
+
+    x_ = np.append(x[inds][~cmplt_mask], x[inds][cmplt_mask][m])
+    y_ = np.append(y[inds][~cmplt_mask], y[inds][cmplt_mask][m])
+    yerr_ = np.append(yerr[inds][~cmplt_mask], yerr[inds][cmplt_mask][m])
+
+    x_ = np.ascontiguousarray(x_, dtype=np.float64)
+    y_ = np.ascontiguousarray(y_, dtype=np.float64)
+    yerr_ = np.ascontiguousarray(yerr_, dtype=np.float64)
+
+    x_inds = np.argsort(x_)
+    y_ = y_[x_inds]
+    yerr_ = yerr_[x_inds]
+    x_ = x_[x_inds]
+
+    # sorted_t_indices = np.argsort(x)
+
+    # combined_masks = np.ascontiguousarray(np.append(~cmplt_mask, sparse_mask))
+
+    # mask = combined_masks[sorted_t_indices]
+
+    print(f"Light curve data ({len(x)}) --> ({len(x_)})")
+
+    return (x_,y_,yerr_)
+
+
 def load_all_data_for_pymc3_model(TIC_TARGET, sparse_factor=1, nsig=3, 
                                 save_data_to_dict=False,
                                 sparsify_phase_curve=False,
@@ -941,13 +1017,16 @@ def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask,
 
 
 
-    x_fold = (
-        (extras["x"] - t0) % period / period
-    )
+#    x_fold = (
+#        (extras["x"] - t0) % period / period
+##    )
+ #   inds = np.argsort(x_fold)
+
+    x_fold = fold(extras['x'], period, t0+0.25*period)
     inds = np.argsort(x_fold)
 
-    ax3.plot(x_fold[inds], extras["y"][inds] - gp_pred[inds], "k.", alpha=0.2)
-    ax3.plot(x_fold[inds] - 1, extras["y"][inds] - gp_pred[inds], "k.", alpha=0.2)
+    ax3.plot(x_fold[inds], extras["y"][inds] - gp_pred[inds], "k.", alpha=0.25)
+    # ax3.plot(x_fold[inds] -1 , extras["y"][inds] - gp_pred[inds], "k.", alpha=0.2)
 #     ax2.plot(
 #         x_fold[mask][inds],
 #         extras["y"][mask][inds] - gp_pred[mask][inds],
@@ -965,12 +1044,15 @@ def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask,
 
     args = dict(lw=1)
 
-    x_fold = (x - t0) % period / period
+    #x_fold = (x - t0) % period / period
+    #inds = np.argsort(x_fold)
+    
+    x_fold = fold(x, period, t0+0.25*period)
     inds = np.argsort(x_fold)
     ax3.plot(x_fold[inds], lc[inds], "C2", **args)
-    ax3.plot(x_fold[inds] - 1, lc[inds], "C2", **args)
+    # ax3.plot(x_fold[inds], lc[inds], "C2", **args)
 
-    ax3.set_xlim(-1, 1)
+    # ax3.set_xlim(-1, 1)
     ax3.set_ylabel("de-trended flux [ppt]")
     ax3.set_xlabel("phase")
     
@@ -996,6 +1078,163 @@ def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask,
     
     if RETURN_FILENAME:
         return filename
+
+
+def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model_dict, sf):
+    if mask is None:
+        mask = np.ones(len(extras['x']), dtype=bool)
+    
+    if 'period' in soln.keys():
+        period = soln['period']
+    else:
+        if pymc3_model_dict is not None:
+            lit_tn = pymc3_model_dict['lit_tn']
+            lit_t0 = pymc3_model_dict['lit_t0']
+            Ntrans = pymc3_model_dict['Ntrans']
+
+            period = (lit_tn - lit_t0) / Ntrans
+    if pymc3_model_dict is not None:
+        x_rv, y_rv, yerr_rv = pymc3_model_dict['x_rv'], pymc3_model_dict['y_rv'], pymc3_model_dict['yerr_rv']
+        x, y, yerr = pymc3_model_dict['x'], pymc3_model_dict['y'], pymc3_model_dict['yerr']
+    else:
+        x_rv = extras['x_rv']
+        y_rv = extras['y_rv']
+        yerr_rv = extras['yerr_rv']
+        x = extras['x']
+        y = extras['y']
+        yerr = extras['yerr']
+    t_lcmod = np.linspace(x.min(), x.max(), int(abs(x.max()-x.min())/(np.median(np.diff(x))/2)))
+    
+    t0 = soln['t0']
+    mean = soln['mean_rv']
+    x_phase = np.linspace(-0.5*period, 0.5*period, 1000)
+    
+
+    
+    with model:
+        lcmod = (
+            pmx.eval_in_model(extras["model_lc"](t_lcmod), soln)
+            - soln["mean_lc"]
+        )
+
+
+    ###### generate primary transit mask
+    subset_mask = t_lcmod <= t_lcmod.min() + period
+
+    lcmodsubset = lcmod[subset_mask]
+    tmodsubset = t_lcmod[subset_mask]
+
+    min_lcmod_flux_ind = np.argmin(lcmodsubset)
+
+    assert lcmodsubset[min_lcmod_flux_ind] < 0.0
+
+    leftside_ind = min_lcmod_flux_ind
+    rightside_ind = min_lcmod_flux_ind
+
+    pri_trans_mask = np.zeros(len(lcmodsubset),dtype=bool)
+    pri_trans_mask[:] = False
+
+    pri_trans_mask[min_lcmod_flux_ind] = True
+    while lcmodsubset[leftside_ind] < 0.0:
+        leftside_ind -= 1
+        pri_trans_mask[leftside_ind] = True
+        
+    while lcmodsubset[rightside_ind] < 0.0:
+        rightside_ind += 1
+        pri_trans_mask[rightside_ind] = True
+        
+        
+    pri_trans_mask[leftside_ind:rightside_ind] = True
+
+    pri_trans_dur = max(tmodsubset[leftside_ind:rightside_ind]) - min(tmodsubset[leftside_ind:rightside_ind])
+    print(f'deepest transit duration: {pri_trans_dur}')
+    # pri_trans_dur *= 2.
+
+    pri_trans_start_time = np.median(tmodsubset[leftside_ind:rightside_ind])
+
+    pri_time_mask = (tmodsubset > pri_trans_start_time-pri_trans_dur*0.5) & (tmodsubset < pri_trans_start_time+pri_trans_dur*0.5)
+    pri_trans_start_flux = lcmodsubset[min_lcmod_flux_ind]
+
+    ##############################################################################
+    tmodsubset2 = tmodsubset[~pri_time_mask]
+    lcmodsubset2 = lcmodsubset[~pri_time_mask]
+
+    min_lcmod_flux_ind2 = np.argmin(lcmodsubset2)
+
+    assert lcmodsubset2[min_lcmod_flux_ind2] < 0.0
+
+    leftside_ind = min_lcmod_flux_ind2
+    rightside_ind = min_lcmod_flux_ind2
+
+    pri_trans_mask2 = np.zeros(len(lcmodsubset2),dtype=bool)
+    pri_trans_mask2[:] = False
+
+    pri_trans_mask2[min_lcmod_flux_ind2] = True
+    while lcmodsubset2[leftside_ind] < 0.0:
+        leftside_ind -= 1
+        pri_trans_mask2[leftside_ind] = True
+        
+    while lcmodsubset2[rightside_ind] < 0.0:
+        rightside_ind += 1
+        pri_trans_mask2[rightside_ind] = True
+        
+    sec_trans_start_time = np.median(tmodsubset2[leftside_ind:rightside_ind])
+    sec_trans_dur = max(tmodsubset2[leftside_ind:rightside_ind]) - min(tmodsubset2[leftside_ind:rightside_ind])
+    print(f'second deepest transit duration: {sec_trans_dur}')
+
+    best_duration = max(1.5*sec_trans_dur, 1.5*pri_trans_dur)
+
+    sec_time_mask = (tmodsubset2 > sec_trans_start_time-best_duration*0.5) & (tmodsubset2 < sec_trans_start_time+sec_trans_dur*0.5)
+
+    print('pri/sec transit start times: ',pri_trans_start_time, sec_trans_start_time)
+
+    ntrans = int((max(t_lcmod)-min(t_lcmod))/period)
+    print(f'number of complete transits: {ntrans}')
+    lightcurve_transit_mask = np.ones(len(t_lcmod),dtype=bool)
+    lightcurve_transit_mask[:] = True
+
+    data_transit_mask = np.ones(len(x),dtype=bool)
+
+    for nt in range(ntrans):
+        pri_mask = (t_lcmod >= (pri_trans_start_time + nt*period) - best_duration*0.5) & \
+                    (t_lcmod <= (pri_trans_start_time + nt*period) + best_duration*0.5)
+        lightcurve_transit_mask[pri_mask] = False
+        
+        pri_data_mask = (x >= (pri_trans_start_time + nt*period) - best_duration*0.5) & \
+                    (x <= (pri_trans_start_time + nt*period) + best_duration*0.5)
+        data_transit_mask[pri_data_mask] = False
+        
+        sec_mask = (t_lcmod >= (sec_trans_start_time + nt*period) - best_duration*0.5) & \
+                    (t_lcmod <= (sec_trans_start_time + nt*period) + best_duration*0.5)
+        lightcurve_transit_mask[sec_mask] = False
+        
+        sec_data_mask = (x >= (sec_trans_start_time + nt*period) - best_duration*0.5) & \
+                    (x <= (sec_trans_start_time + nt*period) + best_duration*0.5)
+        data_transit_mask[pri_data_mask] = False
+
+    x1,y2,yerr2,m = run_with_sparse_data(x[data_transit_mask],
+                                         y[data_transit_mask],
+                                         yerr[data_transit_mask],
+                                        sparse_factor=10,return_mask=True)
+
+    x_ = np.append(x[~data_transit_mask], x[data_transit_mask][m])
+    y_ = np.append(y[~data_transit_mask], y[data_transit_mask][m])
+    yerr_ = np.append(yerr[~data_transit_mask], yerr[data_transit_mask][m])
+
+    x_ = np.ascontiguousarray(x_, dtype=np.float64)
+    y_ = np.ascontiguousarray(y_, dtype=np.float64)
+    yerr_ = np.ascontiguousarray(yerr_, dtype=np.float64)
+
+
+
+    print(len(x),len(x_))
+
+    x_inds = np.argsort(x_)
+    y_ = y_[x_inds]
+    yerr_ = yerr_[x_inds]
+    x_ = x_[x_inds]
+    print(f"Light curve data ({len(x)}) --> ({len(x_)})")
+    return (x_,y_,yerr_)
 
 
 def make_folded_lightcurve_from_blsres(TICID):

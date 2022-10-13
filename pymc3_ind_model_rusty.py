@@ -98,6 +98,8 @@ def load_construct_run_pymc3_model(
                                     norun=0,
                                     center=0
                                     ):
+
+    print(f"sparse_factor set to: {sparse_factor}")
     start_time = time.time()
     theano_root = DD + f"mcmc_chains/"
 
@@ -106,6 +108,7 @@ def load_construct_run_pymc3_model(
     if not os.path.exists(theano_root):
         os.mkdir(theano_root)
 
+    interMAPsf = sparse_factor
 
     theano_path = theano_root + f"mcmc_{TIC_TARGET}_c{chains}_nt{Ntune}_nd{Ndraw}/"
     if os.path.exists(theano_path):
@@ -131,23 +134,35 @@ def load_construct_run_pymc3_model(
     print(f"centering lightcurve and RVs on {center_data}")
     pymc3_model_dict = hf.load_all_data_for_pymc3_model(
                         TIC_TARGET, 
-                        sparse_factor=sparse_factor, 
+                        sparse_factor=1, 
                         nsig=nsig, 
                         sparsify_phase_curve=True,
                         center_on=center_data)
 
     tic_dest, fig_dest = hf.check_for_system_directory_rusty_side(DD,TIC_TARGET, return_directories=True)
 
+    dur = pymc3_model_dict['blsres']['duration_at_max_power']
+
     texp = pymc3_model_dict['texp']
-    x_rv, y_rv, yerr_rv = pymc3_model_dict['x_rv'], pymc3_model_dict['y_rv'], pymc3_model_dict['yerr_rv']
-    x, y, yerr = pymc3_model_dict['x'], pymc3_model_dict['y'], pymc3_model_dict['yerr']
+    
+    x_rv = pymc3_model_dict['x_rv']
+    y_rv = pymc3_model_dict['y_rv']
+    yerr_rv = pymc3_model_dict['yerr_rv']
+
+    x = pymc3_model_dict['x']
+    y = pymc3_model_dict['y']
+    yerr = pymc3_model_dict['yerr']
     lk_sigma = pymc3_model_dict['lk_sigma']
 
-    lit_period, lit_t0, lit_tn = pymc3_model_dict['lit_period'], pymc3_model_dict['lit_t0'], pymc3_model_dict['lit_tn']
-    Ntrans, ecosw_tv = pymc3_model_dict['Ntrans'], pymc3_model_dict['ecosw_tv']
+    lit_period = pymc3_model_dict['lit_period'] 
+    lit_t0 = pymc3_model_dict['lit_t0']
+    lit_tn = pymc3_model_dict['lit_tn']
+
+    Ntrans = pymc3_model_dict['Ntrans']
+    ecosw_tv = pymc3_model_dict['ecosw_tv']
     print('ecosw_tv: ', ecosw_tv)
     # print('skipping manual zeroing of ecosw_tv')
-    if abs(ecosw_tv) > 0.5 and TIC_TARGET != 'TIC 258108067':
+    if abs(ecosw_tv) > 0.01 and TIC_TARGET != 'TIC 258108067':
         print(f"calculated ecosw_tv too high. Resetting to {np.sign(ecosw_tv) * 0.01}")
         ecosw_tv = np.sign(ecosw_tv) * 0.01
 
@@ -323,33 +338,7 @@ def load_construct_run_pymc3_model(
             
             pm.Normal("obs",mu=rv_model, sd=err, observed=y_rv)
 
-            ## compute phased RV signal
-    #         n = 2.*np.pi * (1./period)
-    #         phi = (t0 * n) - omega
-    #         phase = np.linspace(0, 1, 500)
-    #         M_pred = 2 * np.pi * phase - (phi + omega)
-    #         f_pred = xo.orbits.get_true_anomaly(M_pred, ecc + tt.zeros_like(M_pred))
-            
-    # #         K = xo.estimate_semi_amplitude(period, t, rv_model, yerr_rv, t0).to(u.km/u.s)
-    #         K = (tt.max(rv_model) - tt.min(rv_model)) / 2.
-        
-    #         rvphase = pm.Deterministic(
-    #             "rvphase", K * (tt.cos(omega) * (tt.cos(f_pred) + ecc) - tt.sin(omega) * tt.sin(f_pred))
-    #         )
-    #         n = 2.*np.pi * (1./period)
-    #         phi = (t0 * n) - omega
-    #         phase = np.linspace(0, 1, 500)
-    #         M_pred = 2 * np.pi * phase - (phi + omega)
-    #         f_pred = xo.orbits.get_true_anomaly(M_pred, ecc + tt.zeros_like(M_pred))
-            
-    # #         K = xo.estimate_semi_amplitude(period, t, rv_model, yerr_rv, t0).to(u.km/u.s)
-    #         K = (tt.max(rv_model) - tt.min(rv_model)) / 2.
-        
-    #         rvphase = pm.Deterministic(
-    #             "rvphase", K * (tt.cos(omega) * (tt.cos(f_pred) + ecc) - tt.sin(omega) * tt.sin(f_pred))
-    #         )
-            
-            # Optimize the logp
+
             if start is None:
                 start = model.test_point
 
@@ -357,6 +346,7 @@ def load_construct_run_pymc3_model(
             extras = dict(
                 x=x[mask],
                 y=y[mask],
+                yerr=yerr[mask],
                 x_rv = x_rv,
                 y_rv = y_rv,
                 yerr_rv = yerr_rv,
@@ -397,7 +387,11 @@ def load_construct_run_pymc3_model(
                                                      filename=filename_base + ' after log_k opt step.png'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
             filename_list.append(plot)
-            
+            k_logp = -info_['fun']
+            if ~np.isfinite(-info_['fun']):
+                list_of_map_vars.append('log_k')
+                map_vars_dict['log_k'] = log_k
+
             map_soln, info_ = pmx.optimize(map_soln, b, return_info=True)
             plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title=' after b opt step',
@@ -464,29 +458,36 @@ def load_construct_run_pymc3_model(
                 if whileloop_failsafe > 20:
                     break
             
-            
-            map_soln, info_ = pmx.optimize(map_soln, [sigma_lc, sigma_gp, rho_gp], return_info=True)
-            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+            try:
+                map_soln, info_ = pmx.optimize(map_soln, [sigma_lc, sigma_gp, rho_gp], return_info=True)
+                plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title=' after GP params opt step',
                                                      filename=filename_base + ' after GP params opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
-            filename_list.append(plot)
+                filename_list.append(plot)
+            except:
+                print("GP params MAP optimizations failed.")
 
-            map_soln, info_ = pmx.optimize(map_soln, [log_sigma_rv], return_info=True)
-            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+            try:
+                map_soln, info_ = pmx.optimize(map_soln, [log_sigma_rv], return_info=True)
+                plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title=' after lsig_rv params opt step',
                                                      filename=filename_base + ' after lsig_rv params opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
-            filename_list.append(plot)
+                filename_list.append(plot)
+            except:
+                print("Lsig_RV MAP optimization failed.")
 
-            map_soln, info_ = pmx.optimize(map_soln, 
+            try:
+                map_soln, info_ = pmx.optimize(map_soln, 
                                            return_info=True)
-            plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
+                plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title=' after final opt step',
                                                      filename=filename_base+' after final opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
-            filename_list.append(plot) 
-
+                filename_list.append(plot) 
+            except:
+                print("Final comprehensive MAP optimization failed.")
 
 
 
@@ -498,7 +499,7 @@ def load_construct_run_pymc3_model(
 
     model, map_soln, extras, start, opti_logp, filename_list = \
         build_model(suffix=SUFFIX, pymc3_model_dict=pymc3_model_dict)
-
+    # x,y,yerr = hf.calculate_transit_masks_from_model_lc(model, map_soln, extras, None, pymc3_model_dict, interMAPsf)
     import imageio
     images = []
 
@@ -542,6 +543,27 @@ def load_construct_run_pymc3_model(
     SUFFIX2 = SUFFIX + "_2nd_rnd"
     model, map_soln, extras, start, opti_logp,_ = build_model(
             mask, map_soln, suffix=SUFFIX2, pymc3_model_dict=None)
+
+
+    # interMAPdict = {
+    #     'x':x[mask],
+    #     'y':y[mask],
+    #     'yerr':yerr[mask],
+    #     'dur':dur,
+    #     'MAP_period':map_soln['period'],
+    #     'MAP_t0':map_soln['t0']
+    #     }
+    x,y,yerr = hf.calculate_transit_masks_from_model_lc(model, map_soln, extras, mask, pymc3_model_dict, interMAPsf)
+
+
+    print(len(x),len(y),len(yerr))
+    print("#" * 50)
+    print("Starting 3nd round of MAP optimizations with sparsed light curve.")
+    print("#" * 50)
+    SUFFIX3 = SUFFIX + "_3nd_rnd"
+    model, map_soln, extras, start, opti_logp,_ = build_model(
+            mask=None, start=map_soln, suffix=SUFFIX3, pymc3_model_dict=None)
+
 
     sec_rnd = time.time()
 
