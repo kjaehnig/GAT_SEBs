@@ -483,7 +483,7 @@ def load_construct_run_pymc3_model(
                                            return_info=True)
                 plot = hf.plot_MAP_rv_curve_diagnostic_plot(model, map_soln, extras, mask, 
                                                      title=' after final opt step',
-                                                     filename=filename_base+' after final opt step'.replace(' ','_'),
+                                                     filename=f"{TIC_TARGET.replace(' ','_')}_{suffix}"+' after final opt step'.replace(' ','_'),
                                                      RETURN_FILENAME=True, pymc3_model_dict=pymc3_model_dict)
                 filename_list.append(plot) 
             except:
