@@ -676,6 +676,33 @@ def run_with_sparse_data(x,y,yerr, sparse_factor=5, return_mask=False):
         return (x,y,yerr)
 
 
+def sparse_data_to_specific_size(x,y,yerr, ndat=5000, return_mask=False):
+    np.random.seed(33138)
+
+    sf = 1.
+
+    # m = np.random.randn(len(x)) < 1.0 / sf
+
+    for ii in range(1000):
+        
+        m = np.random.rand(len(x)) < 1.0 / sf 
+        # print(sum(m), sf)
+        if sum(m) <= ndat:
+            print(sum(m),sf)
+            break
+
+        sf += 1
+            
+    x = x[m]
+    y = y[m] 
+    yerr = yerr[m] 
+    
+    if return_mask:
+        return (x,y,yerr, m)
+    else:
+        return (x,y,yerr)
+    
+
 def sparse_out_eclipse_phase_curve(pymc3_model_dict,sf,dur):
 
     x,y,yerr = pymc3_model_dict['x'], pymc3_model_dict['y'], pymc3_model_dict['yerr']
@@ -966,10 +993,13 @@ def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask,
     
     t0 = soln['t0']
     mean = soln['mean_rv']
-    x_phase = np.linspace(-0.5*period, 0.5*period, 1000)
+    # x_phase = np.linspace(-0.5*period, 0.5*period, 1000)
+    x_rv_fold = fold(x_rv, period, t0+0.25*period)
+    xrvinds = np.argsort(x_rv_fold)
     
-
-    
+    x_rv_mod = np.linspace(x_rv.min(),x_rv.max(), 1000)
+    x_rv_mod_phase = fold(x_rv_mod, period, t0+0.25*period)
+    xmodinds = np.argsort(x_rv_mod_phase)
     with model:
         gp_pred = (
             pmx.eval_in_model(extras["gp_lc_pred"], soln) + soln["mean_lc"]
@@ -979,7 +1009,7 @@ def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask,
             - soln["mean_lc"]
         )
 
-        y_rv_mod = pmx.eval_in_model(extras['model_rv'](x_phase + t0), soln) - soln['mean_rv']
+        y_rv_mod = pmx.eval_in_model(extras['model_rv'](x_rv_mod), soln) - soln['mean_rv']
     
     # fig, axes = plt.subplots(nrows=3)
     gsfig = GridSpec(nrows=140,ncols=100)
@@ -1042,7 +1072,7 @@ def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask,
     denom, _ = np.histogram(x_fold[inds], bins)
 #     ax2.plot(0.5 * (bins[:-1] + bins[1:]) - 1, num / denom, ".w")
 
-    args = dict(lw=1)
+    args = dict(lw=2)
 
     #x_fold = (x - t0) % period / period
     #inds = np.argsort(x_fold)
@@ -1055,17 +1085,21 @@ def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask,
     # ax3.set_xlim(-1, 1)
     ax3.set_ylabel("de-trended flux [ppt]")
     ax3.set_xlabel("phase")
-    
-    x_rv_fold = fold(x_rv, period, t0 + 0.25*period)
-    ax4.plot(x_phase+0.25*period, y_rv_mod, "C0")
+    lc_phase_xlim = ax3.set_xlim()
+
+    ax4.plot(x_rv_mod_phase[xmodinds] , y_rv_mod[xmodinds], "C0", **args)
+
     if 'log_sigma_rv' not in list(soln.keys()):
         lsig_rv = soln['log_sigma_rv_upperbound__']
     else:
         lsig_rv = soln['log_sigma_rv']
-    ax4.errorbar(x_rv_fold, y_rv-mean, yerr=np.sqrt(np.exp(2.*lsig_rv) + yerr_rv**2.),
+
+    ax4.errorbar(x_rv_fold[xrvinds], y_rv[xrvinds]-mean, yerr=np.sqrt(np.exp(2.*lsig_rv) + yerr_rv**2.),
                  fmt='.',c='black',ecolor='red', label='RV obs')
-    ax4.set_title(title)
+    ax4.set_title(title + f', N_lc: {len(x_fold)}')
     
+    ax4.set_xlim(lc_phase_xlim)
+
     y1,y2 = ax4.set_ylim()
     x1,x2 = ax4.set_xlim()
     ax4.vlines(0.25*(x2-x1) + x1,
@@ -1080,7 +1114,7 @@ def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask,
         return filename
 
 
-def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model_dict, sf):
+def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model_dict, ndata):
     if mask is None:
         mask = np.ones(len(extras['x']), dtype=bool)
     
@@ -1212,11 +1246,10 @@ def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model
                     (x <= (sec_trans_start_time + nt*period) + best_duration*0.5)
         data_transit_mask[sec_data_mask] = False
 
-    x1,y2,yerr2,m = run_with_sparse_data(x[data_transit_mask],
-                                         y[data_transit_mask],
-                                         yerr[data_transit_mask],
-                                        sparse_factor=10,return_mask=True)
-
+    x1,y2,yerr2,m = sparse_data_to_specific_size(x[data_transit_mask],
+                                     y[data_transit_mask],
+                                     yerr[data_transit_mask],
+                                     ndat=ndata,return_mask=True)
     x_ = np.append(x[~data_transit_mask], x[data_transit_mask][m])
     y_ = np.append(y[~data_transit_mask], y[data_transit_mask][m])
     yerr_ = np.append(yerr[~data_transit_mask], yerr[data_transit_mask][m])

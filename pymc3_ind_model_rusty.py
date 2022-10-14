@@ -93,7 +93,8 @@ def load_construct_run_pymc3_model(
                                     Ntune=1000, 
                                     Ndraw=500, 
                                     chains=4, 
-                                    sparse_factor=5, 
+                                    sparse_factor=5,
+                                    ndata=5000,
                                     nsig=5,
                                     norun=0,
                                     center=0
@@ -546,16 +547,7 @@ def load_construct_run_pymc3_model(
     model, map_soln, extras, start, opti_logp,_ = build_model(
             mask, map_soln, suffix=SUFFIX2, pymc3_model_dict=None)
 
-
-    # interMAPdict = {
-    #     'x':x[mask],
-    #     'y':y[mask],
-    #     'yerr':yerr[mask],
-    #     'dur':dur,
-    #     'MAP_period':map_soln['period'],
-    #     'MAP_t0':map_soln['t0']
-    #     }
-    x,y,yerr = hf.calculate_transit_masks_from_model_lc(model, map_soln, extras, mask, pymc3_model_dict, interMAPsf)
+    x,y,yerr = hf.calculate_transit_masks_from_model_lc(model, map_soln, extras, mask, pymc3_model_dict, ndata)
 
 
     print(len(x),len(y),len(yerr))
@@ -568,28 +560,6 @@ def load_construct_run_pymc3_model(
 
 
     sec_rnd = time.time()
-
-    # ###### quick fix to save x and y to the main file dump #######
-    # file = open(f"/Users/kjaehnig/CCA_work/GAT/pymc3_models/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_{SUFFIX}.pickle",'rb')
-    # indres = pk.load(file)
-    # file.close()
-
-    # indres['lcdat'] = {'x':x[mask],'y':y[mask],'yerr':yerr[mask]}
-    # indres['rvdat'] = {'x_rv':x_rv,'y_rv':y_rv,'yerr_rv':yerr_rv}
-    # with model:
-    #     gp_pred = (
-    #         pmx.eval_in_model(extras["gp_lc_pred"], map_soln)
-    #     )
-    # indres['gp_pred'] = gp_pred
-    # file = open(f"/Users/kjaehnig/CCA_work/GAT/pymc3_models/{TIC_TARGET}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_{SUFFIX}.pickle",'wb')
-    # pk.dump(indres, file)
-    # file.close()
-    # print("DONE")
-    # return
-    ########
-    # Ntune = 1000
-    # Ndraw = 500
-    # chains = 4
 
     if norun: 
         return
@@ -664,7 +634,7 @@ def load_construct_run_pymc3_model(
             'lcact': lcact,
             'rvact': rvact,
             'gp_pred': gp_pred,
-            'lcdat': {'x':x[mask],'y':y[mask],'yerr':yerr[mask]},
+            'lcdat': {'x':x,'y':y,'yerr':yerr},
             'rvdat': {'x_rv':x_rv,'y_rv':y_rv,'yerr_rv':yerr_rv}
             },
             file)
@@ -777,6 +747,8 @@ result.add_option("-c", dest='chains', default=2, type='int',
                 help='number of chains to run during sampling (default: 2)')
 result.add_option("--sf", dest='sparse_factor', default=5, type='int',
                 help='how sparse to make the lightcurve data before running pymc3 (default: 5)')
+result.add_option("--ndata", dest='ndata', default=5000, type='int',
+                help='max N out-of-transit data points to thin light curve to (default: 5000)')
 result.add_option("--nsig", dest='nsig', default=5, type='int',
                 help='number of sigma to consider in constructing isochrones BinMod distributions (default: 5)')
 result.add_option("--norun", dest='norun', default=0, type='int',
