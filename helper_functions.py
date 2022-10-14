@@ -1056,8 +1056,8 @@ def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask,
     ax3.set_ylabel("de-trended flux [ppt]")
     ax3.set_xlabel("phase")
     
-    x_rv_fold = fold(x_rv, period, t0)
-    ax4.plot(x_phase, y_rv_mod, "C0")
+    x_rv_fold = fold(x_rv, period, t0 + 0.25*period)
+    ax4.plot(x_phase+0.25*period, y_rv_mod, "C0")
     if 'log_sigma_rv' not in list(soln.keys()):
         lsig_rv = soln['log_sigma_rv_upperbound__']
     else:
@@ -1210,7 +1210,7 @@ def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model
         
         sec_data_mask = (x >= (sec_trans_start_time + nt*period) - best_duration*0.5) & \
                     (x <= (sec_trans_start_time + nt*period) + best_duration*0.5)
-        data_transit_mask[pri_data_mask] = False
+        data_transit_mask[sec_data_mask] = False
 
     x1,y2,yerr2,m = run_with_sparse_data(x[data_transit_mask],
                                          y[data_transit_mask],
