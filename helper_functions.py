@@ -1180,7 +1180,7 @@ def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model
         
     pri_trans_mask[leftside_ind:rightside_ind] = True
 
-    pri_trans_dur = max(tmodsubset[leftside_ind:rightside_ind]) - min(tmodsubset[leftside_ind:rightside_ind])
+    pri_trans_dur = abs(max(tmodsubset[leftside_ind:rightside_ind]) - min(tmodsubset[leftside_ind:rightside_ind]))
     print(f'deepest transit duration: {pri_trans_dur}')
     # pri_trans_dur *= 2.
 
@@ -1213,10 +1213,10 @@ def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model
         pri_trans_mask2[rightside_ind] = True
         
     sec_trans_start_time = np.median(tmodsubset2[leftside_ind:rightside_ind])
-    sec_trans_dur = max(tmodsubset2[leftside_ind:rightside_ind]) - min(tmodsubset2[leftside_ind:rightside_ind])
+    sec_trans_dur = abs(max(tmodsubset2[leftside_ind:rightside_ind]) - min(tmodsubset2[leftside_ind:rightside_ind]))
     print(f'second deepest transit duration: {sec_trans_dur}')
 
-    best_duration = max(1.5*sec_trans_dur, 1.5*pri_trans_dur)
+    best_duration = max(3*sec_trans_dur, 3.*pri_trans_dur)
 
     sec_time_mask = (tmodsubset2 > sec_trans_start_time-best_duration*0.5) & (tmodsubset2 < sec_trans_start_time+sec_trans_dur*0.5)
 
@@ -1267,7 +1267,11 @@ def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model
     yerr_ = yerr_[x_inds]
     x_ = x_[x_inds]
     print(f"Light curve data ({len(x)}) --> ({len(x_)})")
-    return (x_,y_,yerr_)
+
+    all_masks = {'data_transit_mask':data_transit_mask,
+                'm':m}
+
+    return (x_,y_,yerr_, all_masks)
 
 
 def make_folded_lightcurve_from_blsres(TICID):
