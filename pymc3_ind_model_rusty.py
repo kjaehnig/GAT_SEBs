@@ -527,11 +527,11 @@ def load_construct_run_pymc3_model(
         
     resid = y - mod
     rms = np.sqrt(np.median(resid ** 2))
-    mask = np.abs(resid) < 5 * rms
+    rms_mask = np.abs(resid) < 5 * rms
 
     plt.figure(figsize=(10, 5))
     plt.plot(x, resid, "k", label="data")
-    plt.plot(x[~mask], resid[~mask], "xr", label="outliers")
+    plt.plot(x[~rms_mask], resid[~rms_mask], "xr", label="outliers")
     plt.axhline(0, color="#aaaaaa", lw=1)
     plt.ylabel("residuals [ppt]")
     plt.xlabel("time [days]")
@@ -545,9 +545,13 @@ def load_construct_run_pymc3_model(
     print("#" * 50)
     SUFFIX2 = SUFFIX + "_2nd_rnd"
     model, map_soln, extras, start, opti_logp,_ = build_model(
-            mask, map_soln, suffix=SUFFIX2, pymc3_model_dict=None)
+            rms_mask, map_soln, suffix=SUFFIX2, pymc3_model_dict=None)
 
-    x,y,yerr = hf.calculate_transit_masks_from_model_lc(model, map_soln, extras, mask, pymc3_model_dict, ndata)
+    xorig = x
+    yorig = y 
+    yerrorig = yerr
+
+    x,y,yerr,lct_masks = hf.calculate_transit_masks_from_model_lc(model, map_soln, extras, rms_mask, pymc3_model_dict, ndata)
 
 
     print(len(x),len(y),len(yerr))
@@ -621,10 +625,12 @@ def load_construct_run_pymc3_model(
     if 'pymc3_models' not in os.listdir(DD+'ceph/'):
         os.mkdir(DD+'ceph/pymc3_models')
     pymc3_DD = DD + 'ceph/pymc3_models'
-    file = open(f"{pymc3_DD}/{TIC_TARGET}_sf{sparse_factor}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_{SUFFIX}.pickle",'wb')
+    file = open(f"{pymc3_DD}/{TIC_TARGET.replace(' ','_')}_sf{sparse_factor}_pymc3_Nt{Ntune}_Nd{Ndraw}_Nc{chains}_{SUFFIX}.pickle",'wb')
     pk.dump({
             'trace':trace,
-             'mask':mask,
+             'rms_mask':rms_mask,
+             'data_transit_mask':lct_masks['data_transit_mask'],
+             'sparse_mask':lct_masks['m'],
             'map_soln':map_soln,
             'model':model,
             'trv':trv,
