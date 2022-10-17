@@ -997,7 +997,7 @@ def plot_MAP_rv_curve_diagnostic_plot(model, soln, extras, mask,
     x_rv_fold = fold(x_rv, period, t0+0.25*period)
     xrvinds = np.argsort(x_rv_fold)
     
-    x_rv_mod = np.linspace(x_rv.min(),x_rv.max(), 1000)
+    x_rv_mod = np.linspace(x_rv.min(),x_rv.max(), 5000)
     x_rv_mod_phase = fold(x_rv_mod, period, t0+0.25*period)
     xmodinds = np.argsort(x_rv_mod_phase)
     with model:
@@ -1216,7 +1216,7 @@ def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model
     sec_trans_dur = abs(max(tmodsubset2[leftside_ind:rightside_ind]) - min(tmodsubset2[leftside_ind:rightside_ind]))
     print(f'second deepest transit duration: {sec_trans_dur}')
 
-    best_duration = max(3*sec_trans_dur, 3.*pri_trans_dur)
+    best_duration = max(2*sec_trans_dur, 2.*pri_trans_dur)
 
     sec_time_mask = (tmodsubset2 > sec_trans_start_time-best_duration*0.5) & (tmodsubset2 < sec_trans_start_time+sec_trans_dur*0.5)
 
@@ -1250,9 +1250,21 @@ def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model
                                      y[data_transit_mask],
                                      yerr[data_transit_mask],
                                      ndat=ndata,return_mask=True)
-    x_ = np.append(x[~data_transit_mask], x[data_transit_mask][m])
-    y_ = np.append(y[~data_transit_mask], y[data_transit_mask][m])
-    yerr_ = np.append(yerr[~data_transit_mask], yerr[data_transit_mask][m])
+
+    mtrans = np.ones(len(x[~data_transit_mask]),dtype=bool)
+    mtrans[:] = True
+    if len(x[~data_transit_mask]) > 1e4:
+        print("sparsifying the transit data as well")
+
+        xtm,ytm,yerrtm,mtrans = sparse_data_to_specific_size(x[~data_transit_mask],
+                                    y[~data_transit_mask],
+                                    yerr[~data_transit_mask],
+                                    ndat=5000, return_mask=True)
+
+
+    x_ = np.append(x[~data_transit_mask][mtrans], x[data_transit_mask][m])
+    y_ = np.append(y[~data_transit_mask][mtrans], y[data_transit_mask][m])
+    yerr_ = np.append(yerr[~data_transit_mask][mtrans], yerr[data_transit_mask][m])
 
     x_ = np.ascontiguousarray(x_, dtype=np.float64)
     y_ = np.ascontiguousarray(y_, dtype=np.float64)
@@ -1269,6 +1281,7 @@ def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model
     print(f"Light curve data ({len(x)}) --> ({len(x_)})")
 
     all_masks = {'data_transit_mask':data_transit_mask,
+                'mtrans':mtrans,
                 'm':m}
 
     return (x_,y_,yerr_, all_masks)

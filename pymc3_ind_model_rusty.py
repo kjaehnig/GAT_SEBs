@@ -579,7 +579,7 @@ def load_construct_run_pymc3_model(
             # Parallel sampling runs poorly or crashes on macos
             cores=chains,
             chains=chains,
-            target_accept=0.99,
+            target_accept=0.999,
             return_inferencedata=True,
             random_seed=random_seeds,##[261136681, 261136682,261136683,261136684],#261136685, 261136686,261136687,261136688],
             init='jitter+adapt_full'
@@ -630,6 +630,7 @@ def load_construct_run_pymc3_model(
             'trace':trace,
              'rms_mask':rms_mask,
              'data_transit_mask':lct_masks['data_transit_mask'],
+             'mtrans':lct_masks['mtrans'],
              'sparse_mask':lct_masks['m'],
             'map_soln':map_soln,
             'model':model,
@@ -641,6 +642,7 @@ def load_construct_run_pymc3_model(
             'rvact': rvact,
             'gp_pred': gp_pred,
             'lcdat': {'x':x,'y':y,'yerr':yerr},
+            'origlcdat':{'x':xorig,'y':yorig,'yerr':yerrorig},
             'rvdat': {'x_rv':x_rv,'y_rv':y_rv,'yerr_rv':yerr_rv}
             },
             file)
