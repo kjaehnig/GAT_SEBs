@@ -1216,7 +1216,7 @@ def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model
     sec_trans_dur = abs(max(tmodsubset2[leftside_ind:rightside_ind]) - min(tmodsubset2[leftside_ind:rightside_ind]))
     print(f'second deepest transit duration: {sec_trans_dur}')
 
-    best_duration = max(2*sec_trans_dur, 2.*pri_trans_dur)
+    best_duration = max(3*sec_trans_dur, 3.*pri_trans_dur)
 
     sec_time_mask = (tmodsubset2 > sec_trans_start_time-best_duration*0.5) & (tmodsubset2 < sec_trans_start_time+sec_trans_dur*0.5)
 
