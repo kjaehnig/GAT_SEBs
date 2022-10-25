@@ -1128,15 +1128,19 @@ def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model
 
             period = (lit_tn - lit_t0) / Ntrans
     if pymc3_model_dict is not None:
-        x_rv, y_rv, yerr_rv = pymc3_model_dict['x_rv'], pymc3_model_dict['y_rv'], pymc3_model_dict['yerr_rv']
-        x, y, yerr = pymc3_model_dict['x'], pymc3_model_dict['y'], pymc3_model_dict['yerr']
+        x_rv = pymc3_model_dict['x_rv'] 
+        y_rv = pymc3_model_dict['y_rv'] 
+        yerr_rv = pymc3_model_dict['yerr_rv']
+        x = pymc3_model_dict['x'][mask]
+        y = pymc3_model_dict['y'][mask]
+        yerr = pymc3_model_dict['yerr'][mask]
     else:
         x_rv = extras['x_rv']
         y_rv = extras['y_rv']
         yerr_rv = extras['yerr_rv']
-        x = extras['x']
-        y = extras['y']
-        yerr = extras['yerr']
+        x = extras['x'][mask]
+        y = extras['y'][mask]
+        yerr = extras['yerr'][mask]
     t_lcmod = np.linspace(x.min(), x.max(), int(abs(x.max()-x.min())/(np.median(np.diff(x))/2)))
     
     t0 = soln['t0']
@@ -1216,13 +1220,15 @@ def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model
     sec_trans_dur = abs(max(tmodsubset2[leftside_ind:rightside_ind]) - min(tmodsubset2[leftside_ind:rightside_ind]))
     print(f'second deepest transit duration: {sec_trans_dur}')
 
+
+
     best_duration = max(3*sec_trans_dur, 3.*pri_trans_dur)
 
     sec_time_mask = (tmodsubset2 > sec_trans_start_time-best_duration*0.5) & (tmodsubset2 < sec_trans_start_time+sec_trans_dur*0.5)
 
     print('pri/sec transit start times: ',pri_trans_start_time, sec_trans_start_time)
 
-    ntrans = int((max(t_lcmod)-min(t_lcmod))/period)
+    ntrans = int(np.ceil(((max(t_lcmod)-min(t_lcmod))/period)))
     print(f'number of complete transits: {ntrans}')
     lightcurve_transit_mask = np.ones(len(t_lcmod),dtype=bool)
     lightcurve_transit_mask[:] = True
