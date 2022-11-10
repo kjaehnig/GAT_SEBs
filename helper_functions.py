@@ -1157,7 +1157,7 @@ def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model
 
 
     ###### generate primary transit mask
-    subset_mask = (t_lcmod > t0 + 0.25*period) & (t_lcmod < t0 + 1.25*period)
+    subset_mask = (t_lcmod > (t0+t_lcmod.min()) + 0.25*period) & (t_lcmod < (t0+t_lcmod.min()) + 1.25*period)
     
     lcmodsubset = lcmod[subset_mask]
     tmodsubset = t_lcmod[subset_mask]
