@@ -83,7 +83,7 @@ def wrapper_function(index=0,
         if not os.path.exists(theano_root):
             os.mkdir(theano_root)
 
-        theano_path = theano_root + f"HMC_{TIC_TARGET}_c{chains}_nt{Ntune}_nd{Ndraw}/"
+        theano_path = theano_root + f"HMC_{tic_systems_of_interest[index]}_c{chains}_nt{Ntune}_nd{Ndraw}/"
         
         if os.path.exists(theano_path):
             shutil.rmtree(theano_path)
