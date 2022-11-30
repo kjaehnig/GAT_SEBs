@@ -13,6 +13,7 @@
 # import astropy.table as astab
 # from astropy.io import fits
 from optparse import OptionParser
+import os
 import sys
 what_machine_am_i_on = sys.platform
 
@@ -72,7 +73,7 @@ def wrapper_function(index=0,
         if what_machine_am_i_on == 'linux' or what_machine_am_i_on == 'linux2':
             print("running on linux")
             return "/mnt/home/kjaehnig/"
-            
+
     DD = load_system_specific_directory()
 
     if what_machine_am_i_on != 'darwin':
