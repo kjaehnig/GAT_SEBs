@@ -16,9 +16,7 @@ import astropy.table as astab
 from astropy.io import fits
 from optparse import OptionParser
 import helper_functions as hf
-warnings.filterwarnings('ignore',
-    message="WARNING (theano.tensor.opt): Cannot construct a scalar test value from a test value with no size:"
-)
+
 import os
 import shutil
 import pickle as pk
@@ -27,7 +25,10 @@ import pymc3_ext as pmx
 import aesara_theano_fallback.tensor as tt
 from celerite2.theano import terms, GaussianProcess
 from pymc3.util import get_default_varnames, get_untransformed_name, is_transformed_name
+import exoplanet as xo
 
+import arviz as az
+from corner import corner
 
 import sys
 what_machine_am_i_on = sys.platform
@@ -41,13 +42,12 @@ if what_machine_am_i_on=='linux' or what_machine_am_i_on=='linux2':
     theano.config.mode = 'FAST_COMPILE'
     theano.config.cxx = ""
 
-import exoplanet as xo
-
-import arviz as az
-from corner import corner
 
 
 
+warnings.filterwarnings('ignore',
+    message="WARNING (theano.tensor.opt): Cannot construct a scalar test value from a test value with no size:"
+)
 
 def docs_setup():
     """Set some environment variables and ignore some warnings for the docs"""
@@ -70,9 +70,6 @@ def docs_setup():
     logger.setLevel(logging.DEBUG)
 
 docs_setup()
-
-
-
 
 
 # TIC_TARGET = "TIC 28159019"
@@ -102,21 +99,23 @@ def load_construct_run_pymc3_model(
 
     print(f"sparse_factor set to: {sparse_factor}")
     start_time = time.time()
-    theano_root = DD + f"mcmc_chains/"
 
-    print(f'theano_root_dir = {theano_root}')
+    if what_machine_am_i_on == 'darwin':
 
-    if not os.path.exists(theano_root):
-        os.mkdir(theano_root)
+        theano_root = DD + f"mcmc_chains/"
+        print(f'theano_root_dir = {theano_root}')
+        if not os.path.exists(theano_root):
+            os.mkdir(theano_root)
+
+        theano_path = theano_root + f"mcmc_{TIC_TARGET}_c{chains}_nt{Ntune}_nd{Ndraw}/"
+        
+        if os.path.exists(theano_path):
+            shutil.rmtree(theano_path)
+        
+        os.mkdir(theano_path)
+        os.environ["THEANO_FLAGS"] = f"base_compiledir={theano_path}"
 
     interMAPsf = sparse_factor
-
-    theano_path = theano_root + f"mcmc_{TIC_TARGET}_c{chains}_nt{Ntune}_nd{Ndraw}/"
-    if os.path.exists(theano_path):
-        shutil.rmtree(theano_path)
-    os.mkdir(theano_path)
-    os.environ["THEANO_FLAGS"] = f"base_compiledir={theano_path}"
-
     mf = mult_factor
     print(f"running with multiplicative factor of {int(mult_factor)}x")
 
@@ -279,7 +278,7 @@ def load_construct_run_pymc3_model(
     #         sigma_gp = lk_sigma
     #         rho_gp = 0.25*lit_period
             print(sigma_lc, sigma_gp, rho_gp)
-            kernel_lc = terms.SHOTerm(sigma=sigma_gp, rho=rho_gp, Q=1.0 / 4.)
+            kernel_lc = terms.SHOTerm(sigma=sigma_gp, rho=rho_gp, Q=1.0 / 3.5)
 
     #         # Noise model for the radial velocities
     #         sigma_rv = pm.InverseGamma(

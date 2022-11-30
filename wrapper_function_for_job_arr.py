@@ -1,34 +1,37 @@
-import lightkurve as lk
-import astropy.table as astab
-import pandas as pd
-import numpy as np
-import astropy
-import sys
-from astropy.coordinates import SkyCoord
-from astropy import units as u
-import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
-from tqdm import tqdm
-import warnings
-import astropy.table as astab
-from astropy.io import fits
+# import lightkurve as lk
+# import astropy.table as astab
+# import pandas as pd
+# import numpy as np
+# import astropy
+# import sys
+# from astropy.coordinates import SkyCoord
+# from astropy import units as u
+# import matplotlib.pyplot as plt
+# from matplotlib.gridspec import GridSpec
+# from tqdm import tqdm
+# import warnings
+# import astropy.table as astab
+# from astropy.io import fits
 from optparse import OptionParser
-import helper_functions as hf
-warnings.filterwarnings('ignore',
-    message="WARNING (theano.tensor.opt): Cannot construct a scalar test value from a test value with no size:"
-)
-import os
-import pickle as pk
-import pymc3 as pm
-import pymc3_ext as pmx
-import aesara_theano_fallback.tensor as tt
-from celerite2.theano import terms, GaussianProcess
-from pymc3.util import get_default_varnames, get_untransformed_name, is_transformed_name
-import theano
-import exoplanet as xo
+import sys
+what_machine_am_i_on = sys.platform
 
-import arviz as az
-from corner import corner
+# import helper_functions as hf
+# warnings.filterwarnings('ignore',
+#     message="WARNING (theano.tensor.opt): Cannot construct a scalar test value from a test value with no size:"
+# )
+# import os
+# import pickle as pk
+# import pymc3 as pm
+# import pymc3_ext as pmx
+# import aesara_theano_fallback.tensor as tt
+# from celerite2.theano import terms, GaussianProcess
+# from pymc3.util import get_default_varnames, get_untransformed_name, is_transformed_name
+# import theano
+# import exoplanet as xo
+
+# import arviz as az
+# from corner import corner
 
 
 
@@ -59,6 +62,34 @@ def wrapper_function(index=0,
         271548206,
         365204192
         ]
+    def load_system_specific_directory():
+
+        what_machine_am_i_on = sys.platform
+
+        if what_machine_am_i_on == 'darwin':
+            print("running on macOS")
+            return "/Users/karljaehnig/CCA_work/GAT/"
+        if what_machine_am_i_on == 'linux' or what_machine_am_i_on == 'linux2':
+            print("running on linux")
+            return "/mnt/home/kjaehnig/"
+            
+    DD = load_system_specific_directory()
+
+    if what_machine_am_i_on != 'darwin':
+
+        theano_root = DD + f"mcmc_chains/"
+        print(f'theano_root_dir = {theano_root}')
+        if not os.path.exists(theano_root):
+            os.mkdir(theano_root)
+
+        theano_path = theano_root + f"HMC_{TIC_TARGET}_c{chains}_nt{Ntune}_nd{Ndraw}/"
+        
+        if os.path.exists(theano_path):
+            shutil.rmtree(theano_path)
+        
+        os.mkdir(theano_path)
+        os.environ["THEANO_FLAGS"] = f"base_compiledir={theano_path}"
+
 
 
     from pymc3_ind_model_rusty import load_construct_run_pymc3_model

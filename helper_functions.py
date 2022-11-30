@@ -20,14 +20,14 @@ warnings.filterwarnings('ignore',
 import pickle as pk
 import pymc3 as pm
 import pymc3_ext as pmx
-import aesara_theano_fallback.tensor as tt
-from celerite2.theano import terms, GaussianProcess
+# import aesara_theano_fallback.tensor as tt
+# from celerite2.theano import terms, GaussianProcess
 import exoplanet as xo
 
 import arviz as az
 from corner import corner
 
-from scipy.signal import savgol_filter
+# from scipy.signal import savgol_filter
 import wquantiles
 
 
@@ -677,7 +677,7 @@ def run_with_sparse_data(x,y,yerr, sparse_factor=5, return_mask=False):
 
 
 def sparse_data_to_specific_size(x,y,yerr, ndat=5000, return_mask=False):
-    np.random.seed(33138)
+    np.random.seed(37210)
 
     sf = 1.
 
@@ -1222,11 +1222,13 @@ def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model
 
 
 
-    best_duration = max(3*sec_trans_dur, 3.*pri_trans_dur)
+    best_duration = max(2.*sec_trans_dur, 2.*pri_trans_dur)
 
-    sec_time_mask = (tmodsubset2 > sec_trans_start_time-best_duration*0.5) & (tmodsubset2 < sec_trans_start_time+sec_trans_dur*0.5)
+    sec_time_mask = (tmodsubset2 > sec_trans_start_time-best_duration*0.5) & (tmodsubset2 < sec_trans_start_time+best_duration*0.5)
 
     print('pri/sec transit start times: ',pri_trans_start_time, sec_trans_start_time)
+
+    print(f"t_0 - t_1: {abs(pri_trans_start_time-sec_trans_start_time):.3f} (.5p: {0.5*period:.3f})")
 
     ntrans = int(np.ceil(((max(t_lcmod)-min(t_lcmod))/period)))
     print(f'number of complete transits: {ntrans}')
@@ -1243,14 +1245,24 @@ def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model
         pri_data_mask = (x >= (pri_trans_start_time + nt*period) - best_duration*0.5) & \
                     (x <= (pri_trans_start_time + nt*period) + best_duration*0.5)
         data_transit_mask[pri_data_mask] = False
-        
-        sec_mask = (t_lcmod >= (sec_trans_start_time + nt*period) - best_duration*0.5) & \
-                    (t_lcmod <= (sec_trans_start_time + nt*period) + best_duration*0.5)
-        lightcurve_transit_mask[sec_mask] = False
-        
-        sec_data_mask = (x >= (sec_trans_start_time + nt*period) - best_duration*0.5) & \
-                    (x <= (sec_trans_start_time + nt*period) + best_duration*0.5)
-        data_transit_mask[sec_data_mask] = False
+
+
+        if np.isclose(pri_trans_start_time, sec_trans_start_time):  ### catch for if secondary transit mask fails
+            sec_mask = (t_lcmod >= (sec_trans_start_time +0.5*period+ nt*period) - best_duration*0.5) & \
+                        (t_lcmod <= (sec_trans_start_time +0.5*period+ nt*period) + best_duration*0.5)
+            lightcurve_transit_mask[sec_mask] = False
+            
+            sec_data_mask = (x >= (sec_trans_start_time +0.5*period+ nt*period) - best_duration*0.5) & \
+                        (x <= (sec_trans_start_time +0.5*period+ nt*period) + best_duration*0.5)
+            data_transit_mask[sec_data_mask] = False
+        else:
+            sec_mask = (t_lcmod >= (sec_trans_start_time + nt*period) - best_duration*0.5) & \
+                        (t_lcmod <= (sec_trans_start_time + nt*period) + best_duration*0.5)
+            lightcurve_transit_mask[sec_mask] = False
+            
+            sec_data_mask = (x >= (sec_trans_start_time + nt*period) - best_duration*0.5) & \
+                        (x <= (sec_trans_start_time + nt*period) + best_duration*0.5)
+            data_transit_mask[sec_data_mask] = False
 
     x1,y2,yerr2,m = sparse_data_to_specific_size(x[data_transit_mask],
                                      y[data_transit_mask],
@@ -1265,7 +1277,7 @@ def calculate_transit_masks_from_model_lc(model, soln, extras, mask, pymc3_model
         xtm,ytm,yerrtm,mtrans = sparse_data_to_specific_size(x[~data_transit_mask],
                                     y[~data_transit_mask],
                                     yerr[~data_transit_mask],
-                                    ndat=5000, return_mask=True)
+                                    ndat=5e3, return_mask=True)
 
 
     x_ = np.append(x[~data_transit_mask][mtrans], x[data_transit_mask][m])
